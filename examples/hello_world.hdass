@@ -1,0 +1,19 @@
+const SYS_WRITE = 1
+const SYS_EXIT = 60
+
+const STDOUT = 1
+
+data message = "Hello, World!\n"
+
+proc main
+{
+    rax = SYS_WRITE
+    rdi = STDOUT
+    rsi = message
+    rdx = message.len
+    syscall
+    
+    rax = SYS_EXIT
+    rdi = 0
+    syscall
+}

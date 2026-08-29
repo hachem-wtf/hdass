@@ -1,0 +1,5 @@
+bin/
+bin-int/
+.git/
+*.make
+Makefile

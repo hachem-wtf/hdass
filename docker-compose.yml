@@ -1,0 +1,9 @@
+services:
+  hdass:
+    build: .
+    image: hdass-dev
+    platform: linux/amd64
+    working_dir: /hdass
+    volumes:
+      - .:/hdass
+    command: sleep infinity

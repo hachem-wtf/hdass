@@ -1,0 +1,9 @@
+bin/
+bin-int/
+
+# premake-generated files
+Makefile
+*.make
+*.sln
+*.vcxproj
+*.vcxproj.*

@@ -1,0 +1,60 @@
+const SYS_WRITE = 1
+const SYS_EXIT = 60
+
+const STDOUT = 1
+
+data newline = "\n"
+
+proc print_number(value: rdi)
+{
+    stack buffer[32]
+
+    rax = value
+    rbx = 10
+    rsi = buffer+31
+
+convert:
+    rdx = 0
+    rax /= rbx
+    rdx += '0'
+
+    ^rsi = rdx
+    rsi -= 1
+
+    if rax != 0
+        goto convert
+    rsi += 1
+
+    rax = SYS_WRITE
+    rdi = STDOUT
+    rdx = buffer+32-rsi
+    syscall
+
+    rax = SYS_WRITE
+    rdi = STDOUT
+    rsi = newline
+    rdx = newline.len
+    syscall
+}
+
+proc main
+{
+    r12 = 0
+    r13 = 1
+    rcx = 10
+
+loop:
+    print_number(r12)
+
+    rax = r12
+    r12 = r13
+    r13 += rax
+
+    rcx -= 1
+    if rcx != 0
+        goto loop
+
+    rax = SYS_EXIT
+    rdi = 0
+    syscall
+}
