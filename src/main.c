@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "io/file.h"
 #include "cli/args.h"
 
 int main(int argc, char** argv)
@@ -12,11 +13,12 @@ int main(int argc, char** argv)
 	if (result == PARSE_ERROR)
 		return 1;
 
-	static const char* target_names[] = { "nasm", "fasm", "masm" };
+	struct File source;
+	if (!read_file(args.input_path, &source))
+		return 1;
 
-	printf("input:  %s\n", args.input_path);
-	printf("output: %s\n", args.output_path != NULL ? args.output_path : "<stdout>");
-	printf("target: %s\n", target_names[args.target]);
+	printf("read %zu bytes from %s\n", source.size, args.input_path);
 
+	free_file(&source);
 	return 0;
 }
