@@ -7,3 +7,8 @@ Makefile
 *.sln
 *.vcxproj
 *.vcxproj.*
+
+compile_commands.json
+compile_flags.txt
+.clangd
+
