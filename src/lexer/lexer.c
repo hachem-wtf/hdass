@@ -75,6 +75,27 @@ static void skip_whitespace(struct Lexer* lexer)
 			lexer->line += 1;
 			advance(lexer);
 		}
+		else if (c == '/' && lexer->current[1] == '/')
+		{
+			while (peek(lexer) != '\n' && peek(lexer) != '\0')
+				advance(lexer);
+		}
+		else if (c == '/' && lexer->current[1] == '*')
+		{
+			advance(lexer);
+			advance(lexer);
+			while (!(peek(lexer) == '*' && lexer->current[1] == '/') && peek(lexer) != '\0')
+			{
+				if (peek(lexer) == '\n')
+					lexer->line += 1;
+				advance(lexer);
+			}
+			if (peek(lexer) != '\0')
+			{
+				advance(lexer);
+				advance(lexer);
+			}
+		}
 		else
 			return;
 	}

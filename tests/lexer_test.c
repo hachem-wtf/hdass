@@ -53,6 +53,17 @@ static void test_line_counting(struct TestContext* context)
 	check(context, scan_token(&lexer).line == 3);
 }
 
+static void test_comments(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("rax // line comment\n/* block\ncomment */ rbx");
+	check(context, token_matches(scan_token(&lexer), TOKEN_IDENTIFIER, "rax"));
+
+	struct Token second = scan_token(&lexer);
+	check(context, token_matches(second, TOKEN_IDENTIFIER, "rbx"));
+	check(context, second.line == 3);
+	check(context, scan_token(&lexer).type == TOKEN_EOF);
+}
+
 void run_lexer_tests(struct TestContext* context)
 {
 	test_identifiers_and_integers(context);
@@ -60,4 +71,5 @@ void run_lexer_tests(struct TestContext* context)
 	test_literals(context);
 	test_keywords(context);
 	test_line_counting(context);
+	test_comments(context);
 }
