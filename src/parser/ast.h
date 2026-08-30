@@ -67,6 +67,7 @@ enum StatementKind
 	STATEMENT_SYSCALL,
 	STATEMENT_IF,
 	STATEMENT_CALL,
+	STATEMENT_STACK,
 };
 
 struct AssignStatement
@@ -103,6 +104,12 @@ struct CallStatement
 	size_t arg_capacity;
 };
 
+struct StackStatement
+{
+	struct Token name;
+	struct Token size;
+};
+
 struct Statement
 {
 	enum StatementKind kind;
@@ -113,6 +120,7 @@ struct Statement
 		struct GotoStatement jump;
 		struct IfStatement branch;
 		struct CallStatement call;
+		struct StackStatement stack;
 	};
 };
 

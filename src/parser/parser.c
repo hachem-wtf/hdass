@@ -310,6 +310,28 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 		return true;
 	}
 
+	if (match_token(parser, TOKEN_STACK))
+	{
+		if (!consume(parser, TOKEN_IDENTIFIER, "expected buffer name after 'stack'"))
+			return false;
+		struct Token name = parser->previous;
+
+		if (!consume(parser, TOKEN_LEFT_BRACKET, "expected '[' after buffer name"))
+			return false;
+
+		if (!consume(parser, TOKEN_INTEGER, "expected buffer size"))
+			return false;
+		struct Token size = parser->previous;
+
+		if (!consume(parser, TOKEN_RIGHT_BRACKET, "expected ']' after buffer size"))
+			return false;
+
+		out->kind = STATEMENT_STACK;
+		out->stack.name = name;
+		out->stack.size = size;
+		return true;
+	}
+
 	if (match_token(parser, TOKEN_GOTO))
 	{
 		if (!consume(parser, TOKEN_IDENTIFIER, "expected label after 'goto'"))

@@ -172,6 +172,22 @@ static void test_parse_call(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_stack(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nstack buffer[32]\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 1);
+
+	struct Statement statement = program.procs[0].body[0];
+	check(context, statement.kind == STATEMENT_STACK);
+	check(context, text_is(statement.stack.name, "buffer"));
+	check(context, text_is(statement.stack.size, "32"));
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -199,5 +215,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_expressions(context);
 	test_parse_if(context);
 	test_parse_call(context);
+	test_parse_stack(context);
 	test_parse_errors(context);
 }

@@ -67,6 +67,11 @@ static void print_statement(struct Statement* statement, const char* indent)
 			}
 			printf(")\n");
 			break;
+		case STATEMENT_STACK:
+			printf("%sstack %.*s[%.*s]\n", indent,
+				(int)statement->stack.name.length, statement->stack.name.start,
+				(int)statement->stack.size.length, statement->stack.size.start);
+			break;
 	}
 }
 
