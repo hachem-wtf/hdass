@@ -46,6 +46,20 @@ int main(int argc, char** argv)
 			(int)decl.value.length, decl.value.start);
 	}
 
+	for (size_t i = 0; i < program.proc_count; i += 1)
+	{
+		struct ProcDecl proc = program.procs[i];
+		printf("proc %.*s(", (int)proc.name.length, proc.name.start);
+		for (size_t p = 0; p < proc.param_count; p += 1)
+		{
+			struct Param param = proc.params[p];
+			printf("%s%.*s: %.*s", p == 0 ? "" : ", ",
+				(int)param.name.length, param.name.start,
+				(int)param.reg.length, param.reg.start);
+		}
+		printf(")\n");
+	}
+
 	free_program(&program);
 	free_file(&source);
 }

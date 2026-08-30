@@ -22,8 +22,8 @@ static enum TokenType identifier_type(const char* start, size_t length)
 		const char* text;
 		size_t length;
 		enum TokenType type;
-	}
-	keywords[] = {
+	} keywords[] = 
+	{
 		{ "const",   5, TOKEN_CONST   },
 		{ "data",    4, TOKEN_DATA    },
 		{ "proc",    4, TOKEN_PROC    },
