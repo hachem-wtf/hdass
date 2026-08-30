@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 #include "lexer/lexer.h"
@@ -146,8 +147,18 @@ struct ProcDecl
 	size_t body_capacity;
 };
 
+struct Config
+{
+	uint32_t bits;
+	bool has_entry;
+	struct Token entry;
+	bool logical_registers;
+};
+
 struct Program
 {
+	struct Config config;
+
 	struct ConstDecl* consts;
 	size_t const_count;
 	size_t const_capacity;

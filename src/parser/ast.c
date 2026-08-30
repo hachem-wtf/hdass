@@ -58,6 +58,9 @@ void free_proc(struct ProcDecl* proc)
 struct Program create_program(void)
 {
 	struct Program program;
+	program.config.bits = 64;
+	program.config.has_entry = false;
+	program.config.logical_registers = false;
 	program.consts = NULL;
 	program.const_count = 0;
 	program.const_capacity = 0;

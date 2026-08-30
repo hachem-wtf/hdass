@@ -1,3 +1,5 @@
+[entry: main]
+
 // Sums 5 + 4 + 3 + 2 + 1 = 15 with a countdown loop, returns it as the status.
 const SYS_EXIT = 60
 

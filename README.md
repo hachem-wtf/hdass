@@ -8,6 +8,8 @@ This is where hdass comes in. It's not quite high-level enough to be a C-like la
 ## Examples
 Here's a simple "Hello, World!" world program written using hdass' syntax:
 ```hdass
+[entry: main]
+
 const SYS_WRITE = 1
 const SYS_EXIT = 60
 
@@ -60,7 +62,7 @@ From inside the container you can build the compiler and take a program all the 
 premake5 gmake && make config=debug
 ./bin/debug-linux/hdass examples/hello_world.hdass -o hello.asm
 nasm -f elf64 hello.asm -o hello.o
-ld hello.o -o hello
+ld -e main hello.o -o hello
 ./hello
 ```
 

@@ -1,3 +1,5 @@
+[entry: main]
+
 // Computes (5 + 3) * 2 - 1 = 15 and returns it as the exit status.
 const SYS_EXIT = 60
 

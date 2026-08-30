@@ -208,6 +208,32 @@ static void test_parse_sized_deref(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_directives(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("[bits: 32]\n[entry: kmain]\n[enable: logical_registers]\nproc kmain\n{\nsyscall\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.config.bits == 32);
+	check(context, program.config.has_entry);
+	check(context, text_is(program.config.entry, "kmain"));
+	check(context, program.config.logical_registers);
+
+	free_program(&program);
+}
+
+static void test_parse_bad_directive(struct TestContext* context)
+{
+	struct Lexer bad_bits = create_lexer("[bits: 16]\nproc main\n{\nsyscall\n}\n");
+	struct Program program;
+	check(context, !parse_program(&bad_bits, &program));
+	free_program(&program);
+
+	struct Lexer bad_key = create_lexer("[target: nasm]\nproc main\n{\nsyscall\n}\n");
+	check(context, !parse_program(&bad_key, &program));
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -237,5 +263,7 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_call(context);
 	test_parse_stack(context);
 	test_parse_sized_deref(context);
+	test_parse_directives(context);
+	test_parse_bad_directive(context);
 	test_parse_errors(context);
 }

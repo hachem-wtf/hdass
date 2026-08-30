@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "parser/parser.h"
 
@@ -436,6 +437,70 @@ error:
 	return false;
 }
 
+static bool token_text_is(struct Token token, const char* text)
+{
+	size_t length = strlen(text);
+	return token.length == length && memcmp(token.start, text, length) == 0;
+}
+
+static bool parse_directive(struct Parser* parser, struct Program* program)
+{
+	if (!consume(parser, TOKEN_IDENTIFIER, "expected directive name after '['"))
+		return false;
+	struct Token key = parser->previous;
+
+	if (!consume(parser, TOKEN_COLON, "expected ':' after directive name"))
+		return false;
+
+	if (!check(parser, TOKEN_IDENTIFIER) && !check(parser, TOKEN_INTEGER))
+	{
+		error_at(parser, parser->current, "expected a directive value");
+		return false;
+	}
+	advance_parser(parser);
+	struct Token value = parser->previous;
+
+	if (!consume(parser, TOKEN_RIGHT_BRACKET, "expected ']' to close directive"))
+		return false;
+
+	if (token_text_is(key, "bits"))
+	{
+		if (value.type != TOKEN_INTEGER || (!token_text_is(value, "64") && !token_text_is(value, "32")))
+		{
+			error_at(parser, value, "bits must be 32 or 64");
+			return false;
+		}
+		program->config.bits = token_text_is(value, "64") ? 64 : 32;
+		return true;
+	}
+
+	if (token_text_is(key, "entry"))
+	{
+		if (value.type != TOKEN_IDENTIFIER)
+		{
+			error_at(parser, value, "entry must be a procedure name");
+			return false;
+		}
+		program->config.has_entry = true;
+		program->config.entry = value;
+		return true;
+	}
+
+	if (token_text_is(key, "enable"))
+	{
+		if (value.type == TOKEN_IDENTIFIER && token_text_is(value, "logical_registers"))
+		{
+			program->config.logical_registers = true;
+			return true;
+		}
+		error_at(parser, value, "unknown extension");
+		return false;
+	}
+
+	error_at(parser, key, "unknown directive");
+	return false;
+}
+
 bool parse_program(struct Lexer* lexer, struct Program* out)
 {
 	struct Parser parser;
@@ -447,7 +512,13 @@ bool parse_program(struct Lexer* lexer, struct Program* out)
 
 	while (!check(&parser, TOKEN_EOF))
 	{
-		if (check(&parser, TOKEN_CONST))
+		if (check(&parser, TOKEN_LEFT_BRACKET))
+		{
+			advance_parser(&parser);
+			if (!parse_directive(&parser, out))
+				return false;
+		}
+		else if (check(&parser, TOKEN_CONST))
 		{
 			advance_parser(&parser);
 			if (!parse_const(&parser, out))

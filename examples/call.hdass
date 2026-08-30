@@ -1,3 +1,5 @@
+[entry: main]
+
 // Passes an argument through a proc parameter, which exits with that value.
 const SYS_EXIT = 60
 

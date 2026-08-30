@@ -26,7 +26,6 @@ static void test_generate_consts_and_data(struct TestContext* context)
 	check(context, strstr(buffer, "msg: db `hi`") != NULL);
 	check(context, strstr(buffer, ".len equ $ - msg") != NULL);
 	check(context, strstr(buffer, "section .text") != NULL);
-	check(context, strstr(buffer, "global _start") != NULL);
 
 	free_program(&program);
 }
@@ -48,7 +47,7 @@ static void test_generate_text(struct TestContext* context)
 	buffer[read] = '\0';
 	fclose(out);
 
-	check(context, strstr(buffer, "_start:") != NULL);
+	check(context, strstr(buffer, "main:") != NULL);
 	check(context, strstr(buffer, "mov rax, SYS_WRITE") != NULL);
 	check(context, strstr(buffer, "mov rsi, message") != NULL);
 	check(context, strstr(buffer, "mov rdx, message.len") != NULL);
@@ -228,8 +227,58 @@ static void test_generate_sized_store(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_entry_and_bits(struct TestContext* context)
+{
+	struct Lexer with_entry = create_lexer("[bits: 64]\n[entry: main]\nproc main\n{\nsyscall\n}\nproc helper\n{\nsyscall\n}\n");
+	struct Program program;
+	check(context, parse_program(&with_entry, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "bits 64") != NULL);
+	check(context, strstr(buffer, "global main") != NULL);
+	check(context, strstr(buffer, "main:") != NULL);
+	check(context, strstr(buffer, "_start") == NULL);
+	// the entry proc does not return; the non-entry helper does
+	check(context, strstr(buffer, "helper:\n\tsyscall\n\tret") != NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_no_entry(struct TestContext* context)
+{
+	struct Lexer no_entry = create_lexer("proc main\n{\nsyscall\n}\n");
+	struct Program program;
+	check(context, parse_program(&no_entry, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "global") == NULL);
+	check(context, strstr(buffer, "main:") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
+	test_generate_entry_and_bits(context);
+	test_generate_no_entry(context);
 	test_generate_consts_and_data(context);
 	test_generate_text(context);
 	test_generate_if(context);

@@ -24,9 +24,20 @@ static void test_valid_program(struct TestContext* context)
 	check(context, analyze_source("const N = 1\ndata msg = \"hi\"\nproc main\n{\nsyscall\n}\n"));
 }
 
-static void test_missing_main(struct TestContext* context)
+static void test_no_entry_is_ok(struct TestContext* context)
 {
-	check(context, !analyze_source("proc helper\n{\nsyscall\n}\n"));
+	// without an [entry: ...] directive there is no required entry point
+	check(context, analyze_source("proc helper\n{\nsyscall\n}\n"));
+}
+
+static void test_defined_entry(struct TestContext* context)
+{
+	check(context, analyze_source("[entry: start]\nproc start\n{\nsyscall\n}\n"));
+}
+
+static void test_undefined_entry(struct TestContext* context)
+{
+	check(context, !analyze_source("[entry: main]\nproc helper\n{\nsyscall\n}\n"));
 }
 
 static void test_duplicate_const(struct TestContext* context)
@@ -42,7 +53,9 @@ static void test_duplicate_across_kinds(struct TestContext* context)
 void run_sema_tests(struct TestContext* context)
 {
 	test_valid_program(context);
-	test_missing_main(context);
+	test_no_entry_is_ok(context);
+	test_defined_entry(context);
+	test_undefined_entry(context);
 	test_duplicate_const(context);
 	test_duplicate_across_kinds(context);
 }

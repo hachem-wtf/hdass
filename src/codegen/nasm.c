@@ -449,11 +449,12 @@ static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
 	emitter.out = out;
 	emitter.label_id = 0;
 
-	bool is_entry = proc->name.length == 4 && memcmp(proc->name.start, "main", 4) == 0;
-	if (is_entry)
-		fprintf(out, "_start:\n");
-	else
-		fprintf(out, "%.*s:\n", (int)proc->name.length, proc->name.start);
+	struct Config config = program->config;
+	bool is_entry = config.has_entry
+		&& proc->name.length == config.entry.length
+		&& memcmp(proc->name.start, config.entry.start, proc->name.length) == 0;
+
+	fprintf(out, "%.*s:\n", (int)proc->name.length, proc->name.start);
 
 	uint64_t stack_size = proc_stack_size(proc);
 	if (stack_size > 0)
@@ -476,6 +477,8 @@ static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
 
 void generate_nasm(struct Program* program, FILE* out)
 {
+	fprintf(out, "bits %u\n\n", program->config.bits);
+
 	if (program->const_count > 0)
 	{
 		emit_consts(program, out);
@@ -486,7 +489,8 @@ void generate_nasm(struct Program* program, FILE* out)
 	fprintf(out, "\n");
 
 	fprintf(out, "section .text\n");
-	fprintf(out, "global _start\n");
+	if (program->config.has_entry)
+		fprintf(out, "global %.*s\n", (int)program->config.entry.length, program->config.entry.start);
 
 	for (size_t i = 0; i < program->proc_count; i += 1)
 	{

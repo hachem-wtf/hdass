@@ -49,14 +49,16 @@ static bool check_duplicate_names(struct Program* program)
 
 static bool check_entry_point(struct Program* program)
 {
-	for (size_t i = 0; i < program->proc_count; i += 1)
-	{
-		struct Token name = program->procs[i].name;
-		if (name.length == 4 && memcmp(name.start, "main", 4) == 0)
-			return true;
-	}
+	if (!program->config.has_entry)
+		return true;
 
-	fprintf(stderr, "error: no 'main' procedure defined\n");
+	struct Token entry = program->config.entry;
+	for (size_t i = 0; i < program->proc_count; i += 1)
+		if (names_equal(program->procs[i].name, entry))
+			return true;
+
+	fprintf(stderr, "error: line %u: entry point '%.*s' is not defined\n",
+		entry.line, (int)entry.length, entry.start);
 	return false;
 }
 

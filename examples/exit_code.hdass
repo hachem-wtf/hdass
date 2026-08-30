@@ -1,3 +1,5 @@
+[entry: main]
+
 // Exits with status 42 and no output.
 const SYS_EXIT = 60
 

@@ -1,3 +1,5 @@
+[entry: main]
+
 // Writes a fixed string to stdout, then exits cleanly.
 const SYS_WRITE = 1
 const SYS_EXIT = 60

@@ -1,3 +1,5 @@
+[entry: main]
+
 const SYS_WRITE = 1
 const SYS_EXIT = 60
 
