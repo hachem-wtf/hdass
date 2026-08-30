@@ -138,11 +138,34 @@ static bool parse_value(struct Parser* parser, struct Token* out)
 
 static bool parse_statement(struct Parser* parser, struct Statement* out)
 {
+	if (match_token(parser, TOKEN_SYSCALL))
+	{
+		out->kind = STATEMENT_SYSCALL;
+		return true;
+	}
+
+	if (match_token(parser, TOKEN_GOTO))
+	{
+		if (!consume(parser, TOKEN_IDENTIFIER, "expected label after 'goto'"))
+			return false;
+
+		out->kind = STATEMENT_GOTO;
+		out->jump.label = parser->previous;
+		return true;
+	}
+
 	bool deref = match_token(parser, TOKEN_CARET);
 
 	if (!consume(parser, TOKEN_IDENTIFIER, "expected a statement"))
 		return false;
-	struct Token target = parser->previous;
+	struct Token name = parser->previous;
+
+	if (!deref && match_token(parser, TOKEN_COLON))
+	{
+		out->kind = STATEMENT_LABEL;
+		out->label.name = name;
+		return true;
+	}
 
 	if (!is_assign_op(parser->current.type))
 	{
@@ -152,7 +175,7 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 
 	struct AssignStatement assign;
 	assign.target_deref = deref;
-	assign.target = target;
+	assign.target = name;
 	advance_parser(parser);
 	assign.op = parser->previous;
 

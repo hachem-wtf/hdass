@@ -26,6 +26,9 @@ struct Param
 enum StatementKind
 {
 	STATEMENT_ASSIGN,
+	STATEMENT_LABEL,
+	STATEMENT_GOTO,
+	STATEMENT_SYSCALL,
 };
 
 struct AssignStatement
@@ -36,12 +39,24 @@ struct AssignStatement
 	struct Token value;
 };
 
+struct LabelStatement
+{
+	struct Token name;
+};
+
+struct GotoStatement
+{
+	struct Token label;
+};
+
 struct Statement
 {
 	enum StatementKind kind;
 	union
 	{
 		struct AssignStatement assign;
+		struct LabelStatement label;
+		struct GotoStatement jump;
 	};
 };
 

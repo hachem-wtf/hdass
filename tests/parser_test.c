@@ -83,6 +83,27 @@ static void test_parse_proc_body(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_simple_statements(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nloop:\nsyscall\ngoto loop\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 3);
+
+	struct Statement label = program.procs[0].body[0];
+	check(context, label.kind == STATEMENT_LABEL);
+	check(context, text_is(label.label.name, "loop"));
+
+	check(context, program.procs[0].body[1].kind == STATEMENT_SYSCALL);
+
+	struct Statement jump = program.procs[0].body[2];
+	check(context, jump.kind == STATEMENT_GOTO);
+	check(context, text_is(jump.jump.label, "loop"));
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -106,5 +127,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_data(context);
 	test_parse_proc_params(context);
 	test_parse_proc_body(context);
+	test_parse_simple_statements(context);
 	test_parse_errors(context);
 }

@@ -62,14 +62,27 @@ int main(int argc, char** argv)
 		for (size_t s = 0; s < proc.body_count; s += 1)
 		{
 			struct Statement statement = proc.body[s];
-			if (statement.kind == STATEMENT_ASSIGN)
+			switch (statement.kind)
 			{
-				struct AssignStatement assign = statement.assign;
-				printf("  %s%.*s %.*s %.*s\n",
-					assign.target_deref ? "^" : "",
-					(int)assign.target.length, assign.target.start,
-					(int)assign.op.length, assign.op.start,
-					(int)assign.value.length, assign.value.start);
+				case STATEMENT_ASSIGN:
+				{
+					struct AssignStatement assign = statement.assign;
+					printf("  %s%.*s %.*s %.*s\n",
+						assign.target_deref ? "^" : "",
+						(int)assign.target.length, assign.target.start,
+						(int)assign.op.length, assign.op.start,
+						(int)assign.value.length, assign.value.start);
+					break;
+				}
+				case STATEMENT_LABEL:
+					printf("  %.*s:\n", (int)statement.label.name.length, statement.label.name.start);
+					break;
+				case STATEMENT_GOTO:
+					printf("  goto %.*s\n", (int)statement.jump.label.length, statement.jump.label.start);
+					break;
+				case STATEMENT_SYSCALL:
+					printf("  syscall\n");
+					break;
 			}
 		}
 	}
