@@ -275,8 +275,56 @@ static void test_generate_no_entry(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_logical_registers(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"[enable: logical_registers]\nproc main\n{\nr1 = 5\nr4 = r10\nr6 = r1.8\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, 5") != NULL);    // r1 -> rax
+	check(context, strstr(buffer, "mov rdx, r11") != NULL);  // r4 -> rdx, r10 -> r11
+	check(context, strstr(buffer, "mov rdi, al") != NULL);   // r6 -> rdi, r1.8 -> al
+
+	free_program(&program);
+}
+
+static void test_generate_logical_disabled(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nr1 = 5\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	// without the extension, r1 is passed through untouched
+	check(context, strstr(buffer, "mov r1, 5") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
+	test_generate_logical_registers(context);
+	test_generate_logical_disabled(context);
 	test_generate_entry_and_bits(context);
 	test_generate_no_entry(context);
 	test_generate_consts_and_data(context);

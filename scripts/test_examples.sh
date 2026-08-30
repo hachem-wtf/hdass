@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# End-to-end example tests: transpile each program with hdass, assemble it with
-# nasm, link it with ld, run it, and compare its stdout and exit status against
-# the expected values below.
-#
-# The generated programs use Linux x86-64 syscalls, so this must run in the
-# amd64 Linux environment (see the Docker setup in the README), not on macOS.
-#
-# Colours are on by default; set NO_COLOR to disable them.
 set -u
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,8 +30,6 @@ trap 'rm -rf "$work"' EXIT
 pass=0
 fail=0
 
-# check <name> <description> <source> <expected_exit> <expected_stdout>
-# expected_stdout is compared after trailing newlines are stripped (as $() does).
 check()
 {
 	local name="$1" desc="$2" source="$3" expected_exit="$4" expected_stdout="$5"
@@ -90,6 +80,7 @@ check arithmetic  "integer compound-assignment math"      examples/arithmetic.hd
 check loop_sum    "sums 1..5 with a countdown loop"       examples/loop_sum.hdass    15 ""
 check branch      "selects the larger of two values"      examples/branch.hdass      8  ""
 check call        "passes an argument through a proc"     examples/call.hdass        21 ""
+check logical     "logical register names (r1..r14)"      examples/logical.hdass     21 ""
 check fibonacci   "prints the first ten Fibonacci numbers" examples/fibonacci.hdasm  0  "0
 1
 1

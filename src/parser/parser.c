@@ -154,11 +154,15 @@ static struct Expr* parse_postfix(struct Parser* parser)
 
 	while (match_token(parser, TOKEN_DOT))
 	{
-		if (!consume(parser, TOKEN_IDENTIFIER, "expected member name after '.'"))
+		// an identifier is a member (data.len); an integer is a register size
+		// suffix (r1.64), meaningful with the logical_registers extension
+		if (!check(parser, TOKEN_IDENTIFIER) && !check(parser, TOKEN_INTEGER))
 		{
+			error_at(parser, parser->current, "expected a member name or size after '.'");
 			free_expr(expr);
 			return NULL;
 		}
+		advance_parser(parser);
 
 		struct Expr* member = alloc_expr(EXPR_MEMBER);
 		member->member.object = expr;

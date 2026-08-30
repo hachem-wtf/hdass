@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Build hdass and run the full test suite (unit tests plus the end-to-end
-# example tests). Expects the amd64 Linux environment; it is invoked inside the
-# container by scripts/docker_test.sh, but can also be run directly there.
-#
-# Colours are on by default; set NO_COLOR to disable them.
 set -euo pipefail
 
 cd "$(cd "$(dirname "$0")/.." && pwd)"

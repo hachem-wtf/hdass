@@ -234,6 +234,23 @@ static void test_parse_bad_directive(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_register_size_suffix(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nr1 = r2.8\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+
+	struct Expr* value = program.procs[0].body[0].assign.value;
+	check(context, value->kind == EXPR_MEMBER);
+	check(context, value->member.member.type == TOKEN_INTEGER);
+	check(context, text_is(value->member.member, "8"));
+	check(context, value->member.object->kind == EXPR_PRIMARY);
+	check(context, text_is(value->member.object->primary.token, "r2"));
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -265,5 +282,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_sized_deref(context);
 	test_parse_directives(context);
 	test_parse_bad_directive(context);
+	test_parse_register_size_suffix(context);
 	test_parse_errors(context);
 }

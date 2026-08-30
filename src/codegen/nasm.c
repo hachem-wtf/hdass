@@ -55,6 +55,8 @@ struct Emitter
 	uint32_t label_id;
 };
 
+static const char* sized_register(struct Token reg, enum StoreSize size);
+
 static struct Token resolve_token(struct Emitter* emitter, struct Token token)
 {
 	if (emitter->proc == NULL)
@@ -68,6 +70,57 @@ static struct Token resolve_token(struct Emitter* emitter, struct Token token)
 	}
 
 	return token;
+}
+
+static struct Token text_token(const char* text)
+{
+	struct Token token;
+	token.type = TOKEN_IDENTIFIER;
+	token.start = text;
+	token.length = strlen(text);
+	token.line = 0;
+	return token;
+}
+
+// with the logical_registers extension, r1..r14 name the general-purpose
+// registers; rsp/rbp and the instruction pointer keep their dedicated names.
+static const char* logical_register_base(struct Token token)
+{
+	static const char* registers[] = {
+		"rax", "rbx", "rcx", "rdx", "rsi", "rdi",
+		"r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+	};
+
+	if (token.length < 2 || token.start[0] != 'r')
+		return NULL;
+
+	uint32_t index = 0;
+	for (size_t i = 1; i < token.length; i += 1)
+	{
+		char digit = token.start[i];
+		if (digit < '0' || digit > '9')
+			return NULL;
+		index = index * 10 + (uint32_t)(digit - '0');
+	}
+
+	if (index < 1 || index > sizeof(registers) / sizeof(registers[0]))
+		return NULL;
+
+	return registers[index - 1];
+}
+
+static struct Token resolve_register(struct Emitter* emitter, struct Token token)
+{
+	struct Token resolved = resolve_token(emitter, token);
+
+	if (emitter->program->config.logical_registers)
+	{
+		const char* base = logical_register_base(resolved);
+		if (base != NULL)
+			return text_token(base);
+	}
+
+	return resolved;
 }
 
 static uint64_t token_to_u64(struct Token token)
@@ -106,21 +159,49 @@ static bool is_buffer_name(struct Emitter* emitter, struct Token token)
 	return emitter->proc != NULL && buffer_offset(emitter->proc, token, &offset);
 }
 
+static enum StoreSize size_from_int(struct Token token)
+{
+	switch (token_to_u64(token))
+	{
+		case 8:  return STORE_SIZE_BYTE;
+		case 16: return STORE_SIZE_WORD;
+		case 32: return STORE_SIZE_DWORD;
+		case 64: return STORE_SIZE_QWORD;
+		default: return STORE_SIZE_NONE;
+	}
+}
+
 static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 {
 	switch (expr->kind)
 	{
 		case EXPR_PRIMARY:
 		{
-			struct Token token = resolve_token(emitter, expr->primary.token);
+			struct Token token = resolve_register(emitter, expr->primary.token);
 			fprintf(emitter->out, "%.*s", (int)token.length, token.start);
 			return true;
 		}
 		case EXPR_MEMBER:
+		{
+			// a register size suffix: r1.64 -> rax, r1.8 -> al
+			if (expr->member.member.type == TOKEN_INTEGER &&
+				expr->member.object->kind == EXPR_PRIMARY)
+			{
+				enum StoreSize size = size_from_int(expr->member.member);
+				struct Token base = resolve_register(emitter, expr->member.object->primary.token);
+				const char* sized = sized_register(base, size);
+				if (sized != NULL)
+					fprintf(emitter->out, "%s", sized);
+				else
+					fprintf(emitter->out, "%.*s", (int)base.length, base.start);
+				return true;
+			}
+
 			if (!emit_operand(emitter, expr->member.object))
 				return false;
 			fprintf(emitter->out, ".%.*s", (int)expr->member.member.length, expr->member.member.start);
 			return true;
+		}
 		case EXPR_BINARY:
 			return false;
 	}
@@ -130,7 +211,7 @@ static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 
 static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
 {
-	struct Token target = resolve_token(emitter, assign->target);
+	struct Token target = resolve_register(emitter, assign->target);
 	bool target_is_rax = target.length == 3 && memcmp(target.start, "rax", 3) == 0;
 	if (assign->target_deref || !target_is_rax)
 	{
@@ -155,11 +236,14 @@ static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 		case EXPR_MEMBER:
 			return true;
 		case EXPR_BINARY:
-			if (expr->binary.op.type != TOKEN_PLUS && expr->binary.op.type != TOKEN_MINUS)
+			if (expr->binary.op.type != TOKEN_PLUS && 
+				expr->binary.op.type != TOKEN_MINUS)
 				return false;
-			if (expr->binary.right->kind != EXPR_PRIMARY && expr->binary.right->kind != EXPR_MEMBER)
+			if (expr->binary.right->kind != EXPR_PRIMARY && 
+				expr->binary.right->kind != EXPR_MEMBER)
 				return false;
-			if (expr->binary.right->kind == EXPR_PRIMARY && is_buffer_name(emitter, expr->binary.right->primary.token))
+			if (expr->binary.right->kind == EXPR_PRIMARY && 
+				is_buffer_name(emitter, expr->binary.right->primary.token))
 				return false;
 			return expr_supported(emitter, expr->binary.left);
 	}
@@ -266,7 +350,7 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 		return;
 	}
 
-	struct Token target = resolve_token(emitter, assign->target);
+	struct Token target = resolve_register(emitter, assign->target);
 
 	if (assign->op.type == TOKEN_EQUAL && !assign->target_deref)
 	{
@@ -284,7 +368,8 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 
 	// deref store or compound assignment: needs a plain operand, not a buffer or binary
 	const char* mnemonic = assign_mnemonic(assign->op.type);
-	bool value_is_buffer = assign->value->kind == EXPR_PRIMARY && is_buffer_name(emitter, assign->value->primary.token);
+	bool value_is_buffer = assign->value->kind == EXPR_PRIMARY 
+		                && is_buffer_name(emitter, assign->value->primary.token);
 	if (mnemonic == NULL || assign->value->kind == EXPR_BINARY || value_is_buffer)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
@@ -299,7 +384,7 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 		const char* sized = NULL;
 		if (assign->value->kind == EXPR_PRIMARY)
 		{
-			struct Token value = resolve_token(emitter, assign->value->primary.token);
+			struct Token value = resolve_register(emitter, assign->value->primary.token);
 			sized = sized_register(value, assign->store_size);
 			if (sized != NULL)
 				fprintf(emitter->out, "%s", sized);
@@ -360,7 +445,8 @@ static void emit_call(struct Emitter* emitter, struct CallStatement* call)
 			continue;
 		}
 
-		fprintf(emitter->out, "\tmov %.*s, ", (int)callee->params[i].reg.length, callee->params[i].reg.start);
+		struct Token reg = resolve_register(emitter, callee->params[i].reg);
+		fprintf(emitter->out, "\tmov %.*s, ", (int)reg.length, reg.start);
 		emit_operand(emitter, call->args[i]);
 		fprintf(emitter->out, "\n");
 	}

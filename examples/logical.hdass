@@ -1,0 +1,19 @@
+[entry: main]
+[enable: logical_registers]
+
+// With the logical_registers extension, r1..r14 name the general-purpose
+// registers (r1 = rax, r2 = rbx, ...) instead of the architecture names.
+// Computes (4 + 3) * 3 = 21 and returns it as the exit status.
+const SYS_EXIT = 60
+
+proc main
+{
+    r1 = 4        // rax
+    r2 = 3        // rbx
+    r1 += r2      // 7
+    r1 *= r2      // 21
+
+    r6 = r1       // rdi = 21 (the exit status)
+    r1 = SYS_EXIT
+    syscall
+}
