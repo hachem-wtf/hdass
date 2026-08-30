@@ -98,9 +98,46 @@ static const char* jump_if_false(enum TokenType comparison)
 	}
 }
 
-static void emit_statement(struct Statement* statement, FILE* out, uint32_t* label_id);
+static struct ProcDecl* find_proc(struct Program* program, struct Token name)
+{
+	for (size_t i = 0; i < program->proc_count; i += 1)
+	{
+		struct ProcDecl* proc = &program->procs[i];
+		if (proc->name.length == name.length && memcmp(proc->name.start, name.start, name.length) == 0)
+			return proc;
+	}
 
-static void emit_if(struct IfStatement* branch, FILE* out, uint32_t* label_id)
+	return NULL;
+}
+
+static void emit_call(struct CallStatement* call, struct Program* program, FILE* out)
+{
+	struct ProcDecl* callee = find_proc(program, call->name);
+	if (callee == NULL || callee->param_count != call->arg_count)
+	{
+		fprintf(out, "\t; TODO: unsupported call\n");
+		return;
+	}
+
+	for (size_t i = 0; i < call->arg_count; i += 1)
+	{
+		if (call->args[i]->kind == EXPR_BINARY)
+		{
+			fprintf(out, "\t; TODO: unsupported call argument\n");
+			continue;
+		}
+
+		fprintf(out, "\tmov %.*s, ", (int)callee->params[i].reg.length, callee->params[i].reg.start);
+		emit_operand(call->args[i], out);
+		fprintf(out, "\n");
+	}
+
+	fprintf(out, "\tcall %.*s\n", (int)call->name.length, call->name.start);
+}
+
+static void emit_statement(struct Statement* statement, struct Program* program, FILE* out, uint32_t* label_id);
+
+static void emit_if(struct IfStatement* branch, struct Program* program, FILE* out, uint32_t* label_id)
 {
 	const char* jump = jump_if_false(branch->comparison.type);
 	if (jump == NULL || branch->left->kind == EXPR_BINARY || branch->right->kind == EXPR_BINARY)
@@ -119,12 +156,12 @@ static void emit_if(struct IfStatement* branch, FILE* out, uint32_t* label_id)
 	fprintf(out, "\n");
 	fprintf(out, "\t%s .if_end_%u\n", jump, id);
 
-	emit_statement(branch->body, out, label_id);
+	emit_statement(branch->body, program, out, label_id);
 
 	fprintf(out, ".if_end_%u:\n", id);
 }
 
-static void emit_statement(struct Statement* statement, FILE* out, uint32_t* label_id)
+static void emit_statement(struct Statement* statement, struct Program* program, FILE* out, uint32_t* label_id)
 {
 	switch (statement->kind)
 	{
@@ -141,7 +178,10 @@ static void emit_statement(struct Statement* statement, FILE* out, uint32_t* lab
 			fprintf(out, "\tsyscall\n");
 			break;
 		case STATEMENT_IF:
-			emit_if(&statement->branch, out, label_id);
+			emit_if(&statement->branch, program, out, label_id);
+			break;
+		case STATEMENT_CALL:
+			emit_call(&statement->call, program, out);
 			break;
 		default:
 			fprintf(out, "\t; TODO: unsupported statement\n");
@@ -149,7 +189,7 @@ static void emit_statement(struct Statement* statement, FILE* out, uint32_t* lab
 	}
 }
 
-static void emit_proc(struct ProcDecl* proc, FILE* out)
+static void emit_proc(struct ProcDecl* proc, struct Program* program, FILE* out)
 {
 	bool is_entry = proc->name.length == 4 && memcmp(proc->name.start, "main", 4) == 0;
 	if (is_entry)
@@ -159,7 +199,10 @@ static void emit_proc(struct ProcDecl* proc, FILE* out)
 
 	uint32_t label_id = 0;
 	for (size_t i = 0; i < proc->body_count; i += 1)
-		emit_statement(&proc->body[i], out, &label_id);
+		emit_statement(&proc->body[i], program, out, &label_id);
+
+	if (!is_entry)
+		fprintf(out, "\tret\n");
 }
 
 void generate_nasm(struct Program* program, FILE* out)
@@ -179,6 +222,6 @@ void generate_nasm(struct Program* program, FILE* out)
 	for (size_t i = 0; i < program->proc_count; i += 1)
 	{
 		fprintf(out, "\n");
-		emit_proc(&program->procs[i], out);
+		emit_proc(&program->procs[i], program, out);
 	}
 }
