@@ -31,6 +31,44 @@ proc main
 
 The program still directly controls the registers used for the system calls. Nothing is hiding what the program is doing. More examples can be found in [examples/](examples/).
 
+## Building
+The build is driven by [premake5](https://premake.github.io/). Generate the makefiles and build the compiler:
+```bash
+premake5 gmake
+make config=debug
+```
+This produces the `hdass` binary at `bin/<config>-<system>/hdass` (for example `bin/debug-macosx/hdass` or `bin/debug-linux/hdass`). The available configurations are `debug`, `release` and `dist`. To run the unit tests:
+```bash
+make config=debug
+./bin/<config>-<system>/tests
+```
+
+hdass emits x86-64 assembly, so to actually assemble and run its output you need an x86-64 Linux toolchain. The bundled Docker environment provides a consistent one on any host, including Apple Silicon, where the amd64 image runs under emulation. The image is a Debian base with `nasm`, `ld` (binutils), a C toolchain and `premake5` preinstalled.
+
+Start the container (this builds the image the first time):
+```bash
+docker compose up -d --build
+```
+
+Open a shell inside it. The repository is bind-mounted at `/hdass`, so edits on the host are visible immediately:
+```bash
+docker compose exec hdass bash
+```
+
+From inside the container you can build the compiler and take a program all the way to a running executable:
+```bash
+premake5 gmake && make config=debug
+./bin/debug-linux/hdass examples/hello_world.hdass -o hello.asm
+nasm -f elf64 hello.asm -o hello.o
+ld hello.o -o hello
+./hello
+```
+
+When you're finished, stop and remove the container:
+```bash
+docker compose down
+```
+
 ## Disclaimer
 hdass is extremely experimental. The language, syntax and semantics are still being figured out, so things will probably change, sometimes because there is a better way to do something and sometimes because I decided the old syntax looked stupid.
 
