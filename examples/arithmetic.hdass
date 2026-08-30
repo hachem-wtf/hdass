@@ -1,0 +1,13 @@
+// Computes (5 + 3) * 2 - 1 = 15 and returns it as the exit status.
+const SYS_EXIT = 60
+
+proc main
+{
+    rdi = 5
+    rdi += 3
+    rdi *= 2
+    rdi -= 1
+
+    rax = SYS_EXIT
+    syscall
+}

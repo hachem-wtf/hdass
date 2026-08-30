@@ -1,0 +1,20 @@
+// Writes a fixed string to stdout, then exits cleanly.
+const SYS_WRITE = 1
+const SYS_EXIT = 60
+
+const STDOUT = 1
+
+data greeting = "hdass works!\n"
+
+proc main
+{
+    rax = SYS_WRITE
+    rdi = STDOUT
+    rsi = greeting
+    rdx = greeting.len
+    syscall
+
+    rax = SYS_EXIT
+    rdi = 0
+    syscall
+}

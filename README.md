@@ -64,6 +64,16 @@ ld hello.o -o hello
 ./hello
 ```
 
+To transpile, assemble, link and run every program in [examples/](examples/) and check its output, use the end-to-end test script (also from inside the container):
+```bash
+make config=debug && ./scripts/test_examples.sh
+```
+
+Or, from the host, run the whole suite (unit tests plus the example tests) in one shot, bringing the container up if needed:
+```bash
+./scripts/docker_test.sh
+```
+
 When you're finished, stop and remove the container:
 ```bash
 docker compose down

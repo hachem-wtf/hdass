@@ -1,0 +1,17 @@
+// Returns the larger of two values (max(3, 8) = 8) as the exit status.
+const SYS_EXIT = 60
+
+proc main
+{
+    rbx = 3
+    rcx = 8
+
+    rdi = rbx
+    if rcx <= rbx
+        goto done
+    rdi = rcx
+
+done:
+    rax = SYS_EXIT
+    syscall
+}

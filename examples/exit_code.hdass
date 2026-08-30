@@ -1,0 +1,9 @@
+// Exits with status 42 and no output.
+const SYS_EXIT = 60
+
+proc main
+{
+    rax = SYS_EXIT
+    rdi = 42
+    syscall
+}
