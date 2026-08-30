@@ -234,3 +234,4 @@ const char* token_type_name(enum TokenType type)
 
 	return "unknown";
 }
+

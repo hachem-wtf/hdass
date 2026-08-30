@@ -1,8 +1,10 @@
 #include <stdio.h>
+#include <stddef.h>
 
 #include "io/file.h"
 #include "cli/args.h"
 #include "lexer/lexer.h"
+#include "parser/parser.h"
 
 int main(int argc, char** argv)
 {
@@ -20,14 +22,22 @@ int main(int argc, char** argv)
 
 	struct Lexer lexer = create_lexer(source.data);
 
-	for (;;)
+	struct Program program;
+	if (!parse_program(&lexer, &program))
 	{
-		struct Token token = scan_token(&lexer);
-		printf("%4u  %-14s  %.*s\n", token.line, token_type_name(token.type), (int)token.length, token.start);
-		if (token.type == TOKEN_EOF)
-			break;
+		free_program(&program);
+		free_file(&source);
+		return 1;
 	}
 
+	for (size_t i = 0; i < program.const_count; i += 1)
+	{
+		struct ConstDecl decl = program.consts[i];
+		printf("const %.*s = %.*s\n",
+			(int)decl.name.length, decl.name.start,
+			(int)decl.value.length, decl.value.start);
+	}
+
+	free_program(&program);
 	free_file(&source);
-	return 0;
 }
