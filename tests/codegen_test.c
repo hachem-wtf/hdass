@@ -60,8 +60,33 @@ static void test_generate_text(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_if(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nif rcx != 0\ngoto loop\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "cmp rcx, 0") != NULL);
+	check(context, strstr(buffer, "je .if_end_0") != NULL);
+	check(context, strstr(buffer, "jmp loop") != NULL);
+	check(context, strstr(buffer, ".if_end_0:") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
 	test_generate_text(context);
+	test_generate_if(context);
 }

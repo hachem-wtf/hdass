@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -83,7 +84,47 @@ static void emit_assign(struct AssignStatement* assign, FILE* out)
 	fprintf(out, "\n");
 }
 
-static void emit_statement(struct Statement* statement, FILE* out)
+static const char* jump_if_false(enum TokenType comparison)
+{
+	switch (comparison)
+	{
+		case TOKEN_EQUAL_EQUAL:   return "jne";
+		case TOKEN_BANG_EQUAL:    return "je";
+		case TOKEN_LESS:          return "jge";
+		case TOKEN_LESS_EQUAL:    return "jg";
+		case TOKEN_GREATER:       return "jle";
+		case TOKEN_GREATER_EQUAL: return "jl";
+		default:                  return NULL;
+	}
+}
+
+static void emit_statement(struct Statement* statement, FILE* out, uint32_t* label_id);
+
+static void emit_if(struct IfStatement* branch, FILE* out, uint32_t* label_id)
+{
+	const char* jump = jump_if_false(branch->comparison.type);
+	if (jump == NULL || branch->left->kind == EXPR_BINARY || branch->right->kind == EXPR_BINARY)
+	{
+		fprintf(out, "\t; TODO: unsupported if\n");
+		return;
+	}
+
+	uint32_t id = *label_id;
+	*label_id += 1;
+
+	fprintf(out, "\tcmp ");
+	emit_operand(branch->left, out);
+	fprintf(out, ", ");
+	emit_operand(branch->right, out);
+	fprintf(out, "\n");
+	fprintf(out, "\t%s .if_end_%u\n", jump, id);
+
+	emit_statement(branch->body, out, label_id);
+
+	fprintf(out, ".if_end_%u:\n", id);
+}
+
+static void emit_statement(struct Statement* statement, FILE* out, uint32_t* label_id)
 {
 	switch (statement->kind)
 	{
@@ -99,6 +140,9 @@ static void emit_statement(struct Statement* statement, FILE* out)
 		case STATEMENT_SYSCALL:
 			fprintf(out, "\tsyscall\n");
 			break;
+		case STATEMENT_IF:
+			emit_if(&statement->branch, out, label_id);
+			break;
 		default:
 			fprintf(out, "\t; TODO: unsupported statement\n");
 			break;
@@ -113,8 +157,9 @@ static void emit_proc(struct ProcDecl* proc, FILE* out)
 	else
 		fprintf(out, "%.*s:\n", (int)proc->name.length, proc->name.start);
 
+	uint32_t label_id = 0;
 	for (size_t i = 0; i < proc->body_count; i += 1)
-		emit_statement(&proc->body[i], out);
+		emit_statement(&proc->body[i], out, &label_id);
 }
 
 void generate_nasm(struct Program* program, FILE* out)
