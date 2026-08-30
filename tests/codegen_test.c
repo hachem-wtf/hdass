@@ -152,6 +152,30 @@ static void test_generate_divide(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_stack_frame(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc work\n{\nstack buffer[32]\nsyscall\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "push rbp") != NULL);
+	check(context, strstr(buffer, "mov rbp, rsp") != NULL);
+	check(context, strstr(buffer, "sub rsp, 32") != NULL);
+	check(context, strstr(buffer, "leave") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
@@ -160,4 +184,5 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_call(context);
 	test_generate_param_substitution(context);
 	test_generate_divide(context);
+	test_generate_stack_frame(context);
 }

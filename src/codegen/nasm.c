@@ -239,10 +239,37 @@ static void emit_statement(struct Emitter* emitter, struct Statement* statement)
 		case STATEMENT_CALL:
 			emit_call(emitter, &statement->call);
 			break;
+		case STATEMENT_STACK:
+			break;
 		default:
 			fprintf(out, "\t; TODO: unsupported statement\n");
 			break;
 	}
+}
+
+static uint64_t token_to_u64(struct Token token)
+{
+	uint64_t value = 0;
+	for (size_t i = 0; i < token.length; i += 1)
+		value = value * 10 + (uint64_t)(token.start[i] - '0');
+
+	return value;
+}
+
+static uint64_t proc_stack_size(struct ProcDecl* proc)
+{
+	uint64_t total = 0;
+	for (size_t i = 0; i < proc->body_count; i += 1)
+	{
+		struct Statement* statement = &proc->body[i];
+		if (statement->kind == STATEMENT_STACK)
+			total += token_to_u64(statement->stack.size);
+	}
+
+	if (total % 16 != 0)
+		total += 16 - (total % 16);
+
+	return total;
 }
 
 static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
@@ -259,11 +286,23 @@ static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
 	else
 		fprintf(out, "%.*s:\n", (int)proc->name.length, proc->name.start);
 
+	uint64_t stack_size = proc_stack_size(proc);
+	if (stack_size > 0)
+	{
+		fprintf(out, "\tpush rbp\n");
+		fprintf(out, "\tmov rbp, rsp\n");
+		fprintf(out, "\tsub rsp, %llu\n", (unsigned long long)stack_size);
+	}
+
 	for (size_t i = 0; i < proc->body_count; i += 1)
 		emit_statement(&emitter, &proc->body[i]);
 
 	if (!is_entry)
+	{
+		if (stack_size > 0)
+			fprintf(out, "\tleave\n");
 		fprintf(out, "\tret\n");
+	}
 }
 
 void generate_nasm(struct Program* program, FILE* out)
