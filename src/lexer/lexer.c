@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdbool.h>
 
 #include "lexer/lexer.h"
@@ -12,6 +13,34 @@ static bool is_alpha(char character)
 static bool is_digit(char character)
 {
 	return character >= '0' && character <= '9';
+}
+
+static enum TokenType identifier_type(const char* start, size_t length)
+{
+	static const struct Keyword
+	{
+		const char* text;
+		size_t length;
+		enum TokenType type;
+	}
+	keywords[] = {
+		{ "const",   5, TOKEN_CONST   },
+		{ "data",    4, TOKEN_DATA    },
+		{ "proc",    4, TOKEN_PROC    },
+		{ "stack",   5, TOKEN_STACK   },
+		{ "if",      2, TOKEN_IF      },
+		{ "goto",    4, TOKEN_GOTO    },
+		{ "syscall", 7, TOKEN_SYSCALL },
+	};
+
+	for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i += 1)
+	{
+		const struct Keyword* keyword = &keywords[i];
+		if (keyword->length == length && memcmp(start, keyword->text, length) == 0)
+			return keyword->type;
+	}
+
+	return TOKEN_IDENTIFIER;
 }
 
 static char peek(struct Lexer* lexer)
@@ -117,7 +146,7 @@ struct Token scan_token(struct Lexer* lexer)
 	{
 		while (is_alpha(peek(lexer)) || is_digit(peek(lexer)))
 			advance(lexer);
-		return make_token(lexer, TOKEN_IDENTIFIER, start);
+		return make_token(lexer, identifier_type(start, (size_t)(lexer->current - start)), start);
 	}
 
 	if (is_digit(character))
@@ -167,6 +196,13 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_INTEGER:       return "integer";
 		case TOKEN_STRING:        return "string";
 		case TOKEN_CHAR:          return "char";
+		case TOKEN_CONST:         return "const";
+		case TOKEN_DATA:          return "data";
+		case TOKEN_PROC:          return "proc";
+		case TOKEN_STACK:         return "stack";
+		case TOKEN_IF:            return "if";
+		case TOKEN_GOTO:          return "goto";
+		case TOKEN_SYSCALL:       return "syscall";
 		case TOKEN_EQUAL:         return "equal";
 		case TOKEN_PLUS:          return "plus";
 		case TOKEN_MINUS:         return "minus";
