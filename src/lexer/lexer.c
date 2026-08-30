@@ -70,6 +70,40 @@ struct Lexer create_lexer(const char* source)
 	return lexer;
 }
 
+static struct Token scan_string(struct Lexer* lexer, const char* start)
+{
+	while (peek(lexer) != '"')
+	{
+		char character = peek(lexer);
+		if (character == '\0')
+			return make_token(lexer, TOKEN_UNKNOWN, start);
+		if (character == '\n')
+			lexer->line += 1;
+		if (character == '\\' && lexer->current[1] != '\0')
+			advance(lexer);
+		advance(lexer);
+	}
+
+	advance(lexer);
+	return make_token(lexer, TOKEN_STRING, start);
+}
+
+static struct Token scan_char(struct Lexer* lexer, const char* start)
+{
+	while (peek(lexer) != '\'')
+	{
+		char character = peek(lexer);
+		if (character == '\0' || character == '\n')
+			return make_token(lexer, TOKEN_UNKNOWN, start);
+		if (character == '\\' && lexer->current[1] != '\0')
+			advance(lexer);
+		advance(lexer);
+	}
+
+	advance(lexer);
+	return make_token(lexer, TOKEN_CHAR, start);
+}
+
 struct Token scan_token(struct Lexer* lexer)
 {
 	skip_whitespace(lexer);
@@ -92,6 +126,11 @@ struct Token scan_token(struct Lexer* lexer)
 			advance(lexer);
 		return make_token(lexer, TOKEN_INTEGER, start);
 	}
+
+	if (character == '"')
+		return scan_string(lexer, start);
+	if (character == '\'')
+		return scan_char(lexer, start);
 
 	switch (character)
 	{
@@ -126,6 +165,8 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_EOF:           return "eof";
 		case TOKEN_IDENTIFIER:    return "identifier";
 		case TOKEN_INTEGER:       return "integer";
+		case TOKEN_STRING:        return "string";
+		case TOKEN_CHAR:          return "char";
 		case TOKEN_EQUAL:         return "equal";
 		case TOKEN_PLUS:          return "plus";
 		case TOKEN_MINUS:         return "minus";
