@@ -2,6 +2,42 @@
 
 #include "parser/ast.h"
 
+void free_expr(struct Expr* expr)
+{
+	if (expr == NULL)
+		return;
+
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+			break;
+		case EXPR_BINARY:
+			free_expr(expr->binary.left);
+			free_expr(expr->binary.right);
+			break;
+		case EXPR_MEMBER:
+			free_expr(expr->member.object);
+			break;
+	}
+
+	free(expr);
+}
+
+static void free_statement(struct Statement* statement)
+{
+	if (statement->kind == STATEMENT_ASSIGN)
+		free_expr(statement->assign.value);
+}
+
+void free_proc(struct ProcDecl* proc)
+{
+	free(proc->params);
+
+	for (size_t i = 0; i < proc->body_count; i += 1)
+		free_statement(&proc->body[i]);
+	free(proc->body);
+}
+
 struct Program create_program(void)
 {
 	struct Program program;
@@ -23,10 +59,7 @@ void free_program(struct Program* program)
 	free(program->data_decls);
 
 	for (size_t i = 0; i < program->proc_count; i += 1)
-	{
-		free(program->procs[i].params);
-		free(program->procs[i].body);
-	}
+		free_proc(&program->procs[i]);
 	free(program->procs);
 
 	program->consts = NULL;

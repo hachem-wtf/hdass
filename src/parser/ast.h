@@ -23,6 +23,42 @@ struct Param
 	struct Token reg;
 };
 
+enum ExprKind
+{
+	EXPR_PRIMARY,
+	EXPR_BINARY,
+	EXPR_MEMBER,
+};
+
+struct PrimaryExpr
+{
+	struct Token token;
+};
+
+struct BinaryExpr
+{
+	struct Expr* left;
+	struct Token op;
+	struct Expr* right;
+};
+
+struct MemberExpr
+{
+	struct Expr* object;
+	struct Token member;
+};
+
+struct Expr
+{
+	enum ExprKind kind;
+	union
+	{
+		struct PrimaryExpr primary;
+		struct BinaryExpr binary;
+		struct MemberExpr member;
+	};
+};
+
 enum StatementKind
 {
 	STATEMENT_ASSIGN,
@@ -36,7 +72,7 @@ struct AssignStatement
 	bool target_deref;
 	struct Token target;
 	struct Token op;
-	struct Token value;
+	struct Expr* value;
 };
 
 struct LabelStatement
@@ -93,6 +129,9 @@ void add_const(struct Program* program, struct ConstDecl decl);
 void add_data(struct Program* program, struct DataDecl decl);
 
 struct ProcDecl create_proc(void);
+void free_proc(struct ProcDecl* proc);
 void add_param(struct ProcDecl* proc, struct Param param);
 void add_statement(struct ProcDecl* proc, struct Statement statement);
 void add_proc(struct Program* program, struct ProcDecl decl);
+
+void free_expr(struct Expr* expr);

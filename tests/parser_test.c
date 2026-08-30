@@ -10,6 +10,11 @@ static bool text_is(struct Token token, const char* text)
 	return token.length == length && memcmp(token.start, text, length) == 0;
 }
 
+static bool primary_is(struct Expr* expr, const char* text)
+{
+	return expr->kind == EXPR_PRIMARY && text_is(expr->primary.token, text);
+}
+
 static void test_parse_consts(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("const A = 1\nconst B = 60\n");
@@ -69,7 +74,7 @@ static void test_parse_proc_body(struct TestContext* context)
 	check(context, !first.assign.target_deref);
 	check(context, text_is(first.assign.target, "rax"));
 	check(context, text_is(first.assign.op, "="));
-	check(context, text_is(first.assign.value, "1"));
+	check(context, primary_is(first.assign.value, "1"));
 
 	struct Statement second = program.procs[0].body[1];
 	check(context, text_is(second.assign.target, "rcx"));
@@ -78,7 +83,7 @@ static void test_parse_proc_body(struct TestContext* context)
 	struct Statement third = program.procs[0].body[2];
 	check(context, third.assign.target_deref);
 	check(context, text_is(third.assign.target, "rsi"));
-	check(context, text_is(third.assign.value, "rdx"));
+	check(context, primary_is(third.assign.value, "rdx"));
 
 	free_program(&program);
 }
@@ -100,6 +105,28 @@ static void test_parse_simple_statements(struct TestContext* context)
 	struct Statement jump = program.procs[0].body[2];
 	check(context, jump.kind == STATEMENT_GOTO);
 	check(context, text_is(jump.jump.label, "loop"));
+
+	free_program(&program);
+}
+
+static void test_parse_expressions(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nrsi = buffer + 31\nrdx = message.len\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 2);
+
+	struct Expr* sum = program.procs[0].body[0].assign.value;
+	check(context, sum->kind == EXPR_BINARY);
+	check(context, text_is(sum->binary.op, "+"));
+	check(context, primary_is(sum->binary.left, "buffer"));
+	check(context, primary_is(sum->binary.right, "31"));
+
+	struct Expr* member = program.procs[0].body[1].assign.value;
+	check(context, member->kind == EXPR_MEMBER);
+	check(context, primary_is(member->member.object, "message"));
+	check(context, text_is(member->member.member, "len"));
 
 	free_program(&program);
 }
@@ -128,5 +155,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_proc_params(context);
 	test_parse_proc_body(context);
 	test_parse_simple_statements(context);
+	test_parse_expressions(context);
 	test_parse_errors(context);
 }

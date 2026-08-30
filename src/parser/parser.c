@@ -123,17 +123,87 @@ static bool is_assign_op(enum TokenType type)
 		|| type == TOKEN_SLASH_EQUAL;
 }
 
-static bool parse_value(struct Parser* parser, struct Token* out)
+static struct Expr* alloc_expr(enum ExprKind kind)
+{
+	struct Expr* expr = malloc(sizeof(struct Expr));
+	expr->kind = kind;
+	return expr;
+}
+
+static struct Expr* parse_primary(struct Parser* parser)
 {
 	if (check(parser, TOKEN_IDENTIFIER) || check(parser, TOKEN_INTEGER) || check(parser, TOKEN_CHAR))
 	{
 		advance_parser(parser);
-		*out = parser->previous;
-		return true;
+
+		struct Expr* expr = alloc_expr(EXPR_PRIMARY);
+		expr->primary.token = parser->previous;
+		return expr;
 	}
 
-	error_at(parser, parser->current, "expected a value");
-	return false;
+	error_at(parser, parser->current, "expected an expression");
+	return NULL;
+}
+
+static struct Expr* parse_postfix(struct Parser* parser)
+{
+	struct Expr* expr = parse_primary(parser);
+	if (expr == NULL)
+		return NULL;
+
+	while (match_token(parser, TOKEN_DOT))
+	{
+		if (!consume(parser, TOKEN_IDENTIFIER, "expected member name after '.'"))
+		{
+			free_expr(expr);
+			return NULL;
+		}
+
+		struct Expr* member = alloc_expr(EXPR_MEMBER);
+		member->member.object = expr;
+		member->member.member = parser->previous;
+		expr = member;
+	}
+
+	return expr;
+}
+
+static struct Expr* parse_binary(struct Parser* parser, struct Expr* (*operand)(struct Parser*), enum TokenType a, enum TokenType b)
+{
+	struct Expr* left = operand(parser);
+	if (left == NULL)
+		return NULL;
+
+	while (check(parser, a) || check(parser, b))
+	{
+		advance_parser(parser);
+		struct Token op = parser->previous;
+
+		struct Expr* right = operand(parser);
+		if (right == NULL)
+		{
+			free_expr(left);
+			return NULL;
+		}
+
+		struct Expr* binary = alloc_expr(EXPR_BINARY);
+		binary->binary.left = left;
+		binary->binary.op = op;
+		binary->binary.right = right;
+		left = binary;
+	}
+
+	return left;
+}
+
+static struct Expr* parse_multiplicative(struct Parser* parser)
+{
+	return parse_binary(parser, parse_postfix, TOKEN_STAR, TOKEN_SLASH);
+}
+
+static struct Expr* parse_expression(struct Parser* parser)
+{
+	return parse_binary(parser, parse_multiplicative, TOKEN_PLUS, TOKEN_MINUS);
 }
 
 static bool parse_statement(struct Parser* parser, struct Statement* out)
@@ -173,17 +243,18 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 		return false;
 	}
 
-	struct AssignStatement assign;
-	assign.target_deref = deref;
-	assign.target = name;
 	advance_parser(parser);
-	assign.op = parser->previous;
+	struct Token op = parser->previous;
 
-	if (!parse_value(parser, &assign.value))
+	struct Expr* value = parse_expression(parser);
+	if (value == NULL)
 		return false;
 
 	out->kind = STATEMENT_ASSIGN;
-	out->assign = assign;
+	out->assign.target_deref = deref;
+	out->assign.target = name;
+	out->assign.op = op;
+	out->assign.value = value;
 	return true;
 }
 
@@ -226,8 +297,7 @@ static bool parse_proc(struct Parser* parser, struct Program* program)
 	return true;
 
 error:
-	free(decl.params);
-	free(decl.body);
+	free_proc(&decl);
 	return false;
 }
 

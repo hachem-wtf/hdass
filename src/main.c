@@ -6,6 +6,25 @@
 #include "lexer/lexer.h"
 #include "parser/parser.h"
 
+static void print_expr(struct Expr* expr)
+{
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+			printf("%.*s", (int)expr->primary.token.length, expr->primary.token.start);
+			break;
+		case EXPR_BINARY:
+			print_expr(expr->binary.left);
+			printf(" %.*s ", (int)expr->binary.op.length, expr->binary.op.start);
+			print_expr(expr->binary.right);
+			break;
+		case EXPR_MEMBER:
+			print_expr(expr->member.object);
+			printf(".%.*s", (int)expr->member.member.length, expr->member.member.start);
+			break;
+	}
+}
+
 int main(int argc, char** argv)
 {
 	struct Args args;
@@ -67,11 +86,12 @@ int main(int argc, char** argv)
 				case STATEMENT_ASSIGN:
 				{
 					struct AssignStatement assign = statement.assign;
-					printf("  %s%.*s %.*s %.*s\n",
+					printf("  %s%.*s %.*s ",
 						assign.target_deref ? "^" : "",
 						(int)assign.target.length, assign.target.start,
-						(int)assign.op.length, assign.op.start,
-						(int)assign.value.length, assign.value.start);
+						(int)assign.op.length, assign.op.start);
+					print_expr(assign.value);
+					printf("\n");
 					break;
 				}
 				case STATEMENT_LABEL:
