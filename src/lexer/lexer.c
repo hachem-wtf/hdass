@@ -26,6 +26,14 @@ static char advance(struct Lexer* lexer)
 	return c;
 }
 
+static bool match(struct Lexer* lexer, char expected)
+{
+	if (*lexer->current != expected)
+		return false;
+	lexer->current += 1;
+	return true;
+}
+
 static void skip_whitespace(struct Lexer* lexer)
 {
 	for (;;)
@@ -87,11 +95,15 @@ struct Token scan_token(struct Lexer* lexer)
 
 	switch (character)
 	{
-		case '=': return make_token(lexer, TOKEN_EQUAL,         start);
-		case '+': return make_token(lexer, TOKEN_PLUS,          start);
-		case '-': return make_token(lexer, TOKEN_MINUS,         start);
-		case '*': return make_token(lexer, TOKEN_STAR,          start);
-		case '/': return make_token(lexer, TOKEN_SLASH,         start);
+		case '=': return make_token(lexer, match(lexer, '=') ? TOKEN_EQUAL_EQUAL   : TOKEN_EQUAL,   start);
+		case '!': return make_token(lexer, match(lexer, '=') ? TOKEN_BANG_EQUAL    : TOKEN_BANG,    start);
+		case '<': return make_token(lexer, match(lexer, '=') ? TOKEN_LESS_EQUAL    : TOKEN_LESS,    start);
+		case '>': return make_token(lexer, match(lexer, '=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER, start);
+		case '+': return make_token(lexer, match(lexer, '=') ? TOKEN_PLUS_EQUAL    : TOKEN_PLUS,    start);
+		case '-': return make_token(lexer, match(lexer, '=') ? TOKEN_MINUS_EQUAL   : TOKEN_MINUS,   start);
+		case '*': return make_token(lexer, match(lexer, '=') ? TOKEN_STAR_EQUAL    : TOKEN_STAR,    start);
+		case '/': return make_token(lexer, match(lexer, '=') ? TOKEN_SLASH_EQUAL   : TOKEN_SLASH,   start);
+
 		case '^': return make_token(lexer, TOKEN_CARET,         start);
 		case '.': return make_token(lexer, TOKEN_DOT,           start);
 		case ',': return make_token(lexer, TOKEN_COMMA,         start);
@@ -120,6 +132,9 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_STAR:          return "star";
 		case TOKEN_SLASH:         return "slash";
 		case TOKEN_CARET:         return "caret";
+		case TOKEN_BANG:          return "bang";
+		case TOKEN_LESS:          return "less";
+		case TOKEN_GREATER:       return "greater";
 		case TOKEN_DOT:           return "dot";
 		case TOKEN_COMMA:         return "comma";
 		case TOKEN_COLON:         return "colon";
@@ -129,6 +144,14 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_RIGHT_BRACKET: return "right_bracket";
 		case TOKEN_LEFT_BRACE:    return "left_brace";
 		case TOKEN_RIGHT_BRACE:   return "right_brace";
+		case TOKEN_EQUAL_EQUAL:   return "equal_equal";
+		case TOKEN_BANG_EQUAL:    return "bang_equal";
+		case TOKEN_PLUS_EQUAL:    return "plus_equal";
+		case TOKEN_MINUS_EQUAL:   return "minus_equal";
+		case TOKEN_STAR_EQUAL:    return "star_equal";
+		case TOKEN_SLASH_EQUAL:   return "slash_equal";
+		case TOKEN_LESS_EQUAL:    return "less_equal";
+		case TOKEN_GREATER_EQUAL: return "greater_equal";
 		case TOKEN_UNKNOWN:       return "unknown";
 	}
 
