@@ -2,6 +2,7 @@
 
 #include "io/file.h"
 #include "cli/args.h"
+#include "sema/sema.h"
 #include "lexer/lexer.h"
 #include "codegen/nasm.h"
 #include "parser/parser.h"
@@ -30,6 +31,13 @@ int main(int argc, char** argv)
 
 	struct Program program;
 	if (!parse_program(&lexer, &program))
+	{
+		free_program(&program);
+		free_file(&source);
+		return 1;
+	}
+
+	if (!analyze_program(&program))
 	{
 		free_program(&program);
 		free_file(&source);
