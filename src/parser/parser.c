@@ -216,6 +216,48 @@ static bool is_compare_op(enum TokenType type)
 		|| type == TOKEN_GREATER_EQUAL;
 }
 
+static bool parse_call(struct Parser* parser, struct Token name, struct Statement* out)
+{
+	struct Expr** args = NULL;
+	size_t count = 0;
+	size_t capacity = 0;
+
+	if (!check(parser, TOKEN_RIGHT_PAREN))
+	{
+		do
+		{
+			struct Expr* arg = parse_expression(parser);
+			if (arg == NULL)
+				goto error;
+
+			if (count == capacity)
+			{
+				capacity = capacity < 4 ? 4 : capacity * 2;
+				args = realloc(args, capacity * sizeof(struct Expr*));
+			}
+			args[count] = arg;
+			count += 1;
+		}
+		while (match_token(parser, TOKEN_COMMA));
+	}
+
+	if (!consume(parser, TOKEN_RIGHT_PAREN, "expected ')' after arguments"))
+		goto error;
+
+	out->kind = STATEMENT_CALL;
+	out->call.name = name;
+	out->call.args = args;
+	out->call.arg_count = count;
+	out->call.arg_capacity = capacity;
+	return true;
+
+error:
+	for (size_t i = 0; i < count; i += 1)
+		free_expr(args[i]);
+	free(args);
+	return false;
+}
+
 static bool parse_statement(struct Parser* parser, struct Statement* out);
 
 static bool parse_if(struct Parser* parser, struct Statement* out)
@@ -283,6 +325,9 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 	if (!consume(parser, TOKEN_IDENTIFIER, "expected a statement"))
 		return false;
 	struct Token name = parser->previous;
+
+	if (!deref && match_token(parser, TOKEN_LEFT_PAREN))
+		return parse_call(parser, name, out);
 
 	if (!deref && match_token(parser, TOKEN_COLON))
 	{

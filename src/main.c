@@ -57,6 +57,16 @@ static void print_statement(struct Statement* statement, const char* indent)
 			printf("\n");
 			print_statement(statement->branch.body, "    ");
 			break;
+		case STATEMENT_CALL:
+			printf("%s%.*s(", indent, (int)statement->call.name.length, statement->call.name.start);
+			for (size_t i = 0; i < statement->call.arg_count; i += 1)
+			{
+				if (i > 0)
+					printf(", ");
+				print_expr(statement->call.args[i]);
+			}
+			printf(")\n");
+			break;
 	}
 }
 

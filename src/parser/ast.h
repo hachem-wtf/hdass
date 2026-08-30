@@ -66,6 +66,7 @@ enum StatementKind
 	STATEMENT_GOTO,
 	STATEMENT_SYSCALL,
 	STATEMENT_IF,
+	STATEMENT_CALL,
 };
 
 struct AssignStatement
@@ -94,6 +95,14 @@ struct IfStatement
 	struct Statement* body;
 };
 
+struct CallStatement
+{
+	struct Token name;
+	struct Expr** args;
+	size_t arg_count;
+	size_t arg_capacity;
+};
+
 struct Statement
 {
 	enum StatementKind kind;
@@ -103,6 +112,7 @@ struct Statement
 		struct LabelStatement label;
 		struct GotoStatement jump;
 		struct IfStatement branch;
+		struct CallStatement call;
 	};
 };
 

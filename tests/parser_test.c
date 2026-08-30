@@ -150,6 +150,28 @@ static void test_parse_if(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_call(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nprint_number(r12)\nf(a, b)\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 2);
+
+	struct CallStatement first = program.procs[0].body[0].call;
+	check(context, program.procs[0].body[0].kind == STATEMENT_CALL);
+	check(context, text_is(first.name, "print_number"));
+	check(context, first.arg_count == 1);
+	check(context, primary_is(first.args[0], "r12"));
+
+	struct CallStatement second = program.procs[0].body[1].call;
+	check(context, second.arg_count == 2);
+	check(context, primary_is(second.args[0], "a"));
+	check(context, primary_is(second.args[1], "b"));
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -176,5 +198,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_simple_statements(context);
 	test_parse_expressions(context);
 	test_parse_if(context);
+	test_parse_call(context);
 	test_parse_errors(context);
 }

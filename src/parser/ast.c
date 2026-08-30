@@ -36,6 +36,11 @@ static void free_statement(struct Statement* statement)
 			free_statement(statement->branch.body);
 			free(statement->branch.body);
 			break;
+		case STATEMENT_CALL:
+			for (size_t i = 0; i < statement->call.arg_count; i += 1)
+				free_expr(statement->call.args[i]);
+			free(statement->call.args);
+			break;
 		default:
 			break;
 	}
