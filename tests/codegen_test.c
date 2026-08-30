@@ -108,10 +108,33 @@ static void test_generate_call(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_param_substitution(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc print_number(value: rdi)\n{\nrax = value\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, rdi") != NULL);
+	check(context, strstr(buffer, "value") == NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
 	test_generate_text(context);
 	test_generate_if(context);
 	test_generate_call(context);
+	test_generate_param_substitution(context);
 }
