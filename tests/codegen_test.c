@@ -31,7 +31,37 @@ static void test_generate_consts_and_data(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_text(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nrax = SYS_WRITE\nrsi = message\nrdx = message.len\n^rdi = rax\nloop:\nsyscall\ngoto loop\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "_start:") != NULL);
+	check(context, strstr(buffer, "mov rax, SYS_WRITE") != NULL);
+	check(context, strstr(buffer, "mov rsi, message") != NULL);
+	check(context, strstr(buffer, "mov rdx, message.len") != NULL);
+	check(context, strstr(buffer, "mov [rdi], rax") != NULL);
+	check(context, strstr(buffer, "loop:") != NULL);
+	check(context, strstr(buffer, "syscall") != NULL);
+	check(context, strstr(buffer, "jmp loop") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
+	test_generate_text(context);
 }
