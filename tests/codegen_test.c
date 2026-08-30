@@ -1,0 +1,37 @@
+#include <stdio.h>
+#include <string.h>
+
+#include "parser/parser.h"
+#include "codegen/nasm.h"
+#include "tests.h"
+
+static void test_generate_consts_and_data(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("const N = 5\ndata msg = \"hi\"\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "N equ 5") != NULL);
+	check(context, strstr(buffer, "section .data") != NULL);
+	check(context, strstr(buffer, "msg: db `hi`") != NULL);
+	check(context, strstr(buffer, ".len equ $ - msg") != NULL);
+	check(context, strstr(buffer, "section .text") != NULL);
+	check(context, strstr(buffer, "global _start") != NULL);
+
+	free_program(&program);
+}
+
+void run_codegen_tests(struct TestContext* context)
+{
+	test_generate_consts_and_data(context);
+}
