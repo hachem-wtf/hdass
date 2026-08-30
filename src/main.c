@@ -2,6 +2,7 @@
 
 #include "io/file.h"
 #include "cli/args.h"
+#include "lexer/lexer.h"
 
 int main(int argc, char** argv)
 {
@@ -17,7 +18,15 @@ int main(int argc, char** argv)
 	if (!read_file(args.input_path, &source))
 		return 1;
 
-	printf("read %zu bytes from %s\n", source.size, args.input_path);
+	struct Lexer lexer = create_lexer(source.data);
+
+	for (;;)
+	{
+		struct Token token = scan_token(&lexer);
+		printf("%4u  %-14s  %.*s\n", token.line, token_type_name(token.type), (int)token.length, token.start);
+		if (token.type == TOKEN_EOF)
+			break;
+	}
 
 	free_file(&source);
 	return 0;
