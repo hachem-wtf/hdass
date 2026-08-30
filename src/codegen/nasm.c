@@ -92,10 +92,38 @@ static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 	return false;
 }
 
+static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
+{
+	struct Token target = resolve_token(emitter, assign->target);
+	bool target_is_rax = target.length == 3 && memcmp(target.start, "rax", 3) == 0;
+	if (assign->target_deref || !target_is_rax)
+	{
+		fprintf(emitter->out, "\t; TODO: unsupported division\n");
+		return;
+	}
+
+	fprintf(emitter->out, "\tcqo\n");
+	fprintf(emitter->out, "\tidiv ");
+	emit_operand(emitter, assign->value);
+	fprintf(emitter->out, "\n");
+}
+
 static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 {
+	if (assign->value->kind == EXPR_BINARY)
+	{
+		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
+		return;
+	}
+
+	if (assign->op.type == TOKEN_SLASH_EQUAL)
+	{
+		emit_divide(emitter, assign);
+		return;
+	}
+
 	const char* mnemonic = assign_mnemonic(assign->op.type);
-	if (mnemonic == NULL || assign->value->kind == EXPR_BINARY)
+	if (mnemonic == NULL)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
 		return;
