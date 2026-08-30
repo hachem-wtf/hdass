@@ -11,7 +11,7 @@ static void emit_consts(struct Program* program, FILE* out)
 	for (size_t i = 0; i < program->const_count; i += 1)
 	{
 		struct ConstDecl decl = program->consts[i];
-		fprintf(out, "%.*s equ %.*s\n",
+		fprintf(out, "%%define %.*s %.*s\n",
 			(int)decl.name.length, decl.name.start,
 			(int)decl.value.length, decl.value.start);
 	}
