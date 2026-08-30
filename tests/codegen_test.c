@@ -203,6 +203,31 @@ static void test_generate_address_expr(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_sized_store(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\n^byte rsi = rdx\n^dword rsi = rax\n^byte rsi = 5\n^rsi = rbx\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov byte [rsi], dl") != NULL);
+	check(context, strstr(buffer, "mov dword [rsi], eax") != NULL);
+	check(context, strstr(buffer, "mov byte [rsi], 5") != NULL);
+	check(context, strstr(buffer, "mov [rsi], rbx") != NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
@@ -213,4 +238,5 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_divide(context);
 	test_generate_stack_frame(context);
 	test_generate_address_expr(context);
+	test_generate_sized_store(context);
 }

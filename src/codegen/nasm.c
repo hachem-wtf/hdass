@@ -193,6 +193,71 @@ static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr
 	fprintf(emitter->out, "\n");
 }
 
+static const char* store_size_keyword(enum StoreSize size)
+{
+	switch (size)
+	{
+		case STORE_SIZE_BYTE:  return "byte ";
+		case STORE_SIZE_WORD:  return "word ";
+		case STORE_SIZE_DWORD: return "dword ";
+		case STORE_SIZE_QWORD: return "qword ";
+		default:               return "";
+	}
+}
+
+// maps a full 64-bit register to its byte/word/dword sub-register for a sized
+// store, so `^byte rsi = rdx` writes `dl` rather than the whole register.
+// returns NULL when the token is not a full register, or no resizing applies.
+static const char* sized_register(struct Token reg, enum StoreSize size)
+{
+	if (size == STORE_SIZE_NONE || size == STORE_SIZE_QWORD)
+		return NULL;
+
+	static const struct RegisterSizes
+	{
+		const char* quad;
+		const char* dword;
+		const char* word;
+		const char* byte;
+	} registers[] =
+	{
+		{ "rax", "eax",  "ax",   "al"   },
+		{ "rbx", "ebx",  "bx",   "bl"   },
+		{ "rcx", "ecx",  "cx",   "cl"   },
+		{ "rdx", "edx",  "dx",   "dl"   },
+		{ "rsi", "esi",  "si",   "sil"  },
+		{ "rdi", "edi",  "di",   "dil"  },
+		{ "rbp", "ebp",  "bp",   "bpl"  },
+		{ "rsp", "esp",  "sp",   "spl"  },
+		{ "r8",  "r8d",  "r8w",  "r8b"  },
+		{ "r9",  "r9d",  "r9w",  "r9b"  },
+		{ "r10", "r10d", "r10w", "r10b" },
+		{ "r11", "r11d", "r11w", "r11b" },
+		{ "r12", "r12d", "r12w", "r12b" },
+		{ "r13", "r13d", "r13w", "r13b" },
+		{ "r14", "r14d", "r14w", "r14b" },
+		{ "r15", "r15d", "r15w", "r15b" },
+	};
+
+	for (size_t i = 0; i < sizeof(registers) / sizeof(registers[0]); i += 1)
+	{
+		const struct RegisterSizes* entry = &registers[i];
+		size_t length = strlen(entry->quad);
+		if (reg.length != length || memcmp(reg.start, entry->quad, length) != 0)
+			continue;
+
+		switch (size)
+		{
+			case STORE_SIZE_DWORD: return entry->dword;
+			case STORE_SIZE_WORD:  return entry->word;
+			case STORE_SIZE_BYTE:  return entry->byte;
+			default:               return NULL;
+		}
+	}
+
+	return NULL;
+}
+
 static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 {
 	if (assign->op.type == TOKEN_SLASH_EQUAL)
@@ -227,11 +292,28 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 	}
 
 	if (assign->target_deref)
-		fprintf(emitter->out, "\t%s [%.*s], ", mnemonic, (int)target.length, target.start);
-	else
-		fprintf(emitter->out, "\t%s %.*s, ", mnemonic, (int)target.length, target.start);
+	{
+		fprintf(emitter->out, "\t%s %s[%.*s], ", mnemonic,
+			store_size_keyword(assign->store_size), (int)target.length, target.start);
 
-	emit_operand(emitter, assign->value);
+		const char* sized = NULL;
+		if (assign->value->kind == EXPR_PRIMARY)
+		{
+			struct Token value = resolve_token(emitter, assign->value->primary.token);
+			sized = sized_register(value, assign->store_size);
+			if (sized != NULL)
+				fprintf(emitter->out, "%s", sized);
+		}
+
+		if (sized == NULL)
+			emit_operand(emitter, assign->value);
+	}
+	else
+	{
+		fprintf(emitter->out, "\t%s %.*s, ", mnemonic, (int)target.length, target.start);
+		emit_operand(emitter, assign->value);
+	}
+
 	fprintf(emitter->out, "\n");
 }
 

@@ -31,6 +31,10 @@ static enum TokenType identifier_type(const char* start, size_t length)
 		{ "if",      2, TOKEN_IF      },
 		{ "goto",    4, TOKEN_GOTO    },
 		{ "syscall", 7, TOKEN_SYSCALL },
+		{ "byte",    4, TOKEN_BYTE    },
+		{ "word",    4, TOKEN_WORD    },
+		{ "dword",   5, TOKEN_DWORD   },
+		{ "qword",   5, TOKEN_QWORD   },
 	};
 
 	for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); i += 1)
@@ -224,6 +228,10 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_IF:            return "if";
 		case TOKEN_GOTO:          return "goto";
 		case TOKEN_SYSCALL:       return "syscall";
+		case TOKEN_BYTE:          return "byte";
+		case TOKEN_WORD:          return "word";
+		case TOKEN_DWORD:         return "dword";
+		case TOKEN_QWORD:         return "qword";
 		case TOKEN_EQUAL:         return "equal";
 		case TOKEN_PLUS:          return "plus";
 		case TOKEN_MINUS:         return "minus";

@@ -188,6 +188,26 @@ static void test_parse_stack(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_sized_deref(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\n^byte rsi = rdx\n^rdi = rax\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 2);
+
+	struct AssignStatement sized = program.procs[0].body[0].assign;
+	check(context, sized.target_deref);
+	check(context, sized.store_size == STORE_SIZE_BYTE);
+	check(context, text_is(sized.target, "rsi"));
+
+	struct AssignStatement plain = program.procs[0].body[1].assign;
+	check(context, plain.target_deref);
+	check(context, plain.store_size == STORE_SIZE_NONE);
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -216,5 +236,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_if(context);
 	test_parse_call(context);
 	test_parse_stack(context);
+	test_parse_sized_deref(context);
 	test_parse_errors(context);
 }

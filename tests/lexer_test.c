@@ -45,6 +45,15 @@ static void test_keywords(struct TestContext* context)
 	check(context, scan_token(&lexer).type == TOKEN_IDENTIFIER);
 }
 
+static void test_size_keywords(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("byte word dword qword");
+	check(context, scan_token(&lexer).type == TOKEN_BYTE);
+	check(context, scan_token(&lexer).type == TOKEN_WORD);
+	check(context, scan_token(&lexer).type == TOKEN_DWORD);
+	check(context, scan_token(&lexer).type == TOKEN_QWORD);
+}
+
 static void test_line_counting(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("a\nb\nc");
@@ -70,6 +79,7 @@ void run_lexer_tests(struct TestContext* context)
 	test_operators(context);
 	test_literals(context);
 	test_keywords(context);
+	test_size_keywords(context);
 	test_line_counting(context);
 	test_comments(context);
 }

@@ -344,6 +344,19 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 
 	bool deref = match_token(parser, TOKEN_CARET);
 
+	enum StoreSize store_size = STORE_SIZE_NONE;
+	if (deref)
+	{
+		if (match_token(parser, TOKEN_BYTE))
+			store_size = STORE_SIZE_BYTE;
+		else if (match_token(parser, TOKEN_WORD))
+			store_size = STORE_SIZE_WORD;
+		else if (match_token(parser, TOKEN_DWORD))
+			store_size = STORE_SIZE_DWORD;
+		else if (match_token(parser, TOKEN_QWORD))
+			store_size = STORE_SIZE_QWORD;
+	}
+
 	if (!consume(parser, TOKEN_IDENTIFIER, "expected a statement"))
 		return false;
 	struct Token name = parser->previous;
@@ -373,6 +386,7 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 
 	out->kind = STATEMENT_ASSIGN;
 	out->assign.target_deref = deref;
+	out->assign.store_size = store_size;
 	out->assign.target = name;
 	out->assign.op = op;
 	out->assign.value = value;

@@ -59,6 +59,15 @@ struct Expr
 	};
 };
 
+enum StoreSize
+{
+	STORE_SIZE_NONE,
+	STORE_SIZE_BYTE,
+	STORE_SIZE_WORD,
+	STORE_SIZE_DWORD,
+	STORE_SIZE_QWORD,
+};
+
 enum StatementKind
 {
 	STATEMENT_ASSIGN,
@@ -73,6 +82,7 @@ enum StatementKind
 struct AssignStatement
 {
 	bool target_deref;
+	enum StoreSize store_size;
 	struct Token target;
 	struct Token op;
 	struct Expr* value;

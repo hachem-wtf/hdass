@@ -70,6 +70,16 @@ check arithmetic  examples/arithmetic.hdass  15 ""
 check loop_sum    examples/loop_sum.hdass    15 ""
 check branch      examples/branch.hdass      8  ""
 check call        examples/call.hdass        21 ""
+check fibonacci   examples/fibonacci.hdasm   0  "0
+1
+1
+2
+3
+5
+8
+13
+21
+34"
 
 echo
 echo "$pass passed, $fail failed"
