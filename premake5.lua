@@ -90,3 +90,37 @@ project "hdass"
 	filter "configurations:dist"
 		defines "HDASS_DIST"
 	filter {}
+
+project "tests"
+	kind "ConsoleApp"
+	language "C"
+	cdialect "C17"
+
+	setup_c_target()
+
+	files {
+		"src/**.h",
+		"src/**.c",
+		"tests/**.h",
+		"tests/**.c",
+	}
+
+	removefiles "src/main.c"
+
+	includedirs {
+		"src",
+		"tests",
+	}
+
+	filter { "system:macosx or system:linux" }
+		buildoptions {
+			"-Wall",
+			"-Wextra",
+			"-Werror",
+			"-pedantic",
+		}
+	filter {}
+
+	filter "system:windows"
+		systemversion "latest"
+	filter {}
