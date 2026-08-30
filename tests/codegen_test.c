@@ -176,6 +176,33 @@ static void test_generate_stack_frame(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_address_expr(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc work\n{\nstack buffer[32]\nrsi = buffer + 31\nrdx = buffer + 32 - rsi\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "lea rsi, [rbp - 32]") != NULL);
+	check(context, strstr(buffer, "add rsi, 31") != NULL);
+	check(context, strstr(buffer, "lea rdx, [rbp - 32]") != NULL);
+	check(context, strstr(buffer, "add rdx, 32") != NULL);
+	check(context, strstr(buffer, "sub rdx, rsi") != NULL);
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
 	test_generate_consts_and_data(context);
@@ -185,4 +212,5 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_param_substitution(context);
 	test_generate_divide(context);
 	test_generate_stack_frame(context);
+	test_generate_address_expr(context);
 }

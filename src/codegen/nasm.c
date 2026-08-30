@@ -70,6 +70,42 @@ static struct Token resolve_token(struct Emitter* emitter, struct Token token)
 	return token;
 }
 
+static uint64_t token_to_u64(struct Token token)
+{
+	uint64_t value = 0;
+	for (size_t i = 0; i < token.length; i += 1)
+		value = value * 10 + (uint64_t)(token.start[i] - '0');
+
+	return value;
+}
+
+static bool buffer_offset(struct ProcDecl* proc, struct Token name, uint64_t* out_offset)
+{
+	uint64_t cumulative = 0;
+	for (size_t i = 0; i < proc->body_count; i += 1)
+	{
+		struct Statement* statement = &proc->body[i];
+		if (statement->kind != STATEMENT_STACK)
+			continue;
+
+		cumulative += token_to_u64(statement->stack.size);
+		if (statement->stack.name.length == name.length
+			&& memcmp(statement->stack.name.start, name.start, name.length) == 0)
+		{
+			*out_offset = cumulative;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool is_buffer_name(struct Emitter* emitter, struct Token token)
+{
+	uint64_t offset;
+	return emitter->proc != NULL && buffer_offset(emitter->proc, token, &offset);
+}
+
 static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 {
 	switch (expr->kind)
@@ -108,28 +144,88 @@ static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
 	fprintf(emitter->out, "\n");
 }
 
-static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
+// an expression can be evaluated into a register when it is a single term
+// (primary or member), or a left-associative chain of '+'/'-' whose right
+// operands are plain operands (never a buffer or a nested binary)
+static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 {
-	if (assign->value->kind == EXPR_BINARY)
+	switch (expr->kind)
 	{
-		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
+		case EXPR_PRIMARY:
+		case EXPR_MEMBER:
+			return true;
+		case EXPR_BINARY:
+			if (expr->binary.op.type != TOKEN_PLUS && expr->binary.op.type != TOKEN_MINUS)
+				return false;
+			if (expr->binary.right->kind != EXPR_PRIMARY && expr->binary.right->kind != EXPR_MEMBER)
+				return false;
+			if (expr->binary.right->kind == EXPR_PRIMARY && is_buffer_name(emitter, expr->binary.right->primary.token))
+				return false;
+			return expr_supported(emitter, expr->binary.left);
+	}
+
+	return false;
+}
+
+static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr* expr)
+{
+	if (expr->kind == EXPR_BINARY)
+	{
+		emit_expr_into(emitter, dst, expr->binary.left);
+
+		const char* mnemonic = expr->binary.op.type == TOKEN_PLUS ? "add" : "sub";
+		fprintf(emitter->out, "\t%s %s, ", mnemonic, dst);
+		emit_operand(emitter, expr->binary.right);
+		fprintf(emitter->out, "\n");
 		return;
 	}
 
+	if (expr->kind == EXPR_PRIMARY && is_buffer_name(emitter, expr->primary.token))
+	{
+		uint64_t offset;
+		buffer_offset(emitter->proc, expr->primary.token, &offset);
+		fprintf(emitter->out, "\tlea %s, [rbp - %llu]\n", dst, (unsigned long long)offset);
+		return;
+	}
+
+	fprintf(emitter->out, "\tmov %s, ", dst);
+	emit_operand(emitter, expr);
+	fprintf(emitter->out, "\n");
+}
+
+static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
+{
 	if (assign->op.type == TOKEN_SLASH_EQUAL)
 	{
 		emit_divide(emitter, assign);
 		return;
 	}
 
+	struct Token target = resolve_token(emitter, assign->target);
+
+	if (assign->op.type == TOKEN_EQUAL && !assign->target_deref)
+	{
+		if (!expr_supported(emitter, assign->value))
+		{
+			fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
+			return;
+		}
+
+		char dst[32];
+		snprintf(dst, sizeof(dst), "%.*s", (int)target.length, target.start);
+		emit_expr_into(emitter, dst, assign->value);
+		return;
+	}
+
+	// deref store or compound assignment: needs a plain operand, not a buffer or binary
 	const char* mnemonic = assign_mnemonic(assign->op.type);
-	if (mnemonic == NULL)
+	bool value_is_buffer = assign->value->kind == EXPR_PRIMARY && is_buffer_name(emitter, assign->value->primary.token);
+	if (mnemonic == NULL || assign->value->kind == EXPR_BINARY || value_is_buffer)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
 		return;
 	}
 
-	struct Token target = resolve_token(emitter, assign->target);
 	if (assign->target_deref)
 		fprintf(emitter->out, "\t%s [%.*s], ", mnemonic, (int)target.length, target.start);
 	else
@@ -245,15 +341,6 @@ static void emit_statement(struct Emitter* emitter, struct Statement* statement)
 			fprintf(out, "\t; TODO: unsupported statement\n");
 			break;
 	}
-}
-
-static uint64_t token_to_u64(struct Token token)
-{
-	uint64_t value = 0;
-	for (size_t i = 0; i < token.length; i += 1)
-		value = value * 10 + (uint64_t)(token.start[i] - '0');
-
-	return value;
 }
 
 static uint64_t proc_stack_size(struct ProcDecl* proc)
