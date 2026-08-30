@@ -25,6 +25,41 @@ static void print_expr(struct Expr* expr)
 	}
 }
 
+static void print_statement(struct Statement* statement, const char* indent)
+{
+	switch (statement->kind)
+	{
+		case STATEMENT_ASSIGN:
+		{
+			struct AssignStatement assign = statement->assign;
+			printf("%s%s%.*s %.*s ", indent,
+				assign.target_deref ? "^" : "",
+				(int)assign.target.length, assign.target.start,
+				(int)assign.op.length, assign.op.start);
+			print_expr(assign.value);
+			printf("\n");
+			break;
+		}
+		case STATEMENT_LABEL:
+			printf("%s%.*s:\n", indent, (int)statement->label.name.length, statement->label.name.start);
+			break;
+		case STATEMENT_GOTO:
+			printf("%sgoto %.*s\n", indent, (int)statement->jump.label.length, statement->jump.label.start);
+			break;
+		case STATEMENT_SYSCALL:
+			printf("%ssyscall\n", indent);
+			break;
+		case STATEMENT_IF:
+			printf("%sif ", indent);
+			print_expr(statement->branch.left);
+			printf(" %.*s ", (int)statement->branch.comparison.length, statement->branch.comparison.start);
+			print_expr(statement->branch.right);
+			printf("\n");
+			print_statement(statement->branch.body, "    ");
+			break;
+	}
+}
+
 int main(int argc, char** argv)
 {
 	struct Args args;
@@ -79,32 +114,7 @@ int main(int argc, char** argv)
 		printf(")\n");
 
 		for (size_t s = 0; s < proc.body_count; s += 1)
-		{
-			struct Statement statement = proc.body[s];
-			switch (statement.kind)
-			{
-				case STATEMENT_ASSIGN:
-				{
-					struct AssignStatement assign = statement.assign;
-					printf("  %s%.*s %.*s ",
-						assign.target_deref ? "^" : "",
-						(int)assign.target.length, assign.target.start,
-						(int)assign.op.length, assign.op.start);
-					print_expr(assign.value);
-					printf("\n");
-					break;
-				}
-				case STATEMENT_LABEL:
-					printf("  %.*s:\n", (int)statement.label.name.length, statement.label.name.start);
-					break;
-				case STATEMENT_GOTO:
-					printf("  goto %.*s\n", (int)statement.jump.label.length, statement.jump.label.start);
-					break;
-				case STATEMENT_SYSCALL:
-					printf("  syscall\n");
-					break;
-			}
-		}
+			print_statement(&proc.body[s], "  ");
 	}
 
 	free_program(&program);

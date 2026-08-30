@@ -25,8 +25,20 @@ void free_expr(struct Expr* expr)
 
 static void free_statement(struct Statement* statement)
 {
-	if (statement->kind == STATEMENT_ASSIGN)
-		free_expr(statement->assign.value);
+	switch (statement->kind)
+	{
+		case STATEMENT_ASSIGN:
+			free_expr(statement->assign.value);
+			break;
+		case STATEMENT_IF:
+			free_expr(statement->branch.left);
+			free_expr(statement->branch.right);
+			free_statement(statement->branch.body);
+			free(statement->branch.body);
+			break;
+		default:
+			break;
+	}
 }
 
 void free_proc(struct ProcDecl* proc)

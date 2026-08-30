@@ -65,6 +65,7 @@ enum StatementKind
 	STATEMENT_LABEL,
 	STATEMENT_GOTO,
 	STATEMENT_SYSCALL,
+	STATEMENT_IF,
 };
 
 struct AssignStatement
@@ -85,6 +86,14 @@ struct GotoStatement
 	struct Token label;
 };
 
+struct IfStatement
+{
+	struct Expr* left;
+	struct Token comparison;
+	struct Expr* right;
+	struct Statement* body;
+};
+
 struct Statement
 {
 	enum StatementKind kind;
@@ -93,6 +102,7 @@ struct Statement
 		struct AssignStatement assign;
 		struct LabelStatement label;
 		struct GotoStatement jump;
+		struct IfStatement branch;
 	};
 };
 

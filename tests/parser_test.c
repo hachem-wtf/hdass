@@ -131,6 +131,25 @@ static void test_parse_expressions(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_if(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nif rax != 0\ngoto loop\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 1);
+
+	struct Statement branch = program.procs[0].body[0];
+	check(context, branch.kind == STATEMENT_IF);
+	check(context, primary_is(branch.branch.left, "rax"));
+	check(context, text_is(branch.branch.comparison, "!="));
+	check(context, primary_is(branch.branch.right, "0"));
+	check(context, branch.branch.body->kind == STATEMENT_GOTO);
+	check(context, text_is(branch.branch.body->jump.label, "loop"));
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -156,5 +175,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_proc_body(context);
 	test_parse_simple_statements(context);
 	test_parse_expressions(context);
+	test_parse_if(context);
 	test_parse_errors(context);
 }

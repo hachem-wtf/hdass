@@ -206,8 +206,62 @@ static struct Expr* parse_expression(struct Parser* parser)
 	return parse_binary(parser, parse_multiplicative, TOKEN_PLUS, TOKEN_MINUS);
 }
 
+static bool is_compare_op(enum TokenType type)
+{
+	return type == TOKEN_EQUAL_EQUAL
+		|| type == TOKEN_BANG_EQUAL
+		|| type == TOKEN_LESS
+		|| type == TOKEN_LESS_EQUAL
+		|| type == TOKEN_GREATER
+		|| type == TOKEN_GREATER_EQUAL;
+}
+
+static bool parse_statement(struct Parser* parser, struct Statement* out);
+
+static bool parse_if(struct Parser* parser, struct Statement* out)
+{
+	struct Expr* left = parse_expression(parser);
+	if (left == NULL)
+		return false;
+
+	if (!is_compare_op(parser->current.type))
+	{
+		error_at(parser, parser->current, "expected a comparison operator");
+		free_expr(left);
+		return false;
+	}
+	advance_parser(parser);
+	struct Token comparison = parser->previous;
+
+	struct Expr* right = parse_expression(parser);
+	if (right == NULL)
+	{
+		free_expr(left);
+		return false;
+	}
+
+	struct Statement* body = malloc(sizeof(struct Statement));
+	if (!parse_statement(parser, body))
+	{
+		free(body);
+		free_expr(left);
+		free_expr(right);
+		return false;
+	}
+
+	out->kind = STATEMENT_IF;
+	out->branch.left = left;
+	out->branch.comparison = comparison;
+	out->branch.right = right;
+	out->branch.body = body;
+	return true;
+}
+
 static bool parse_statement(struct Parser* parser, struct Statement* out)
 {
+	if (match_token(parser, TOKEN_IF))
+		return parse_if(parser, out);
+
 	if (match_token(parser, TOKEN_SYSCALL))
 	{
 		out->kind = STATEMENT_SYSCALL;
