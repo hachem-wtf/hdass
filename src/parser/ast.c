@@ -23,7 +23,10 @@ void free_program(struct Program* program)
 	free(program->data_decls);
 
 	for (size_t i = 0; i < program->proc_count; i += 1)
+	{
 		free(program->procs[i].params);
+		free(program->procs[i].body);
+	}
 	free(program->procs);
 
 	program->consts = NULL;
@@ -70,6 +73,9 @@ struct ProcDecl create_proc(void)
 	proc.params = NULL;
 	proc.param_count = 0;
 	proc.param_capacity = 0;
+	proc.body = NULL;
+	proc.body_count = 0;
+	proc.body_capacity = 0;
 	return proc;
 }
 
@@ -84,6 +90,19 @@ void add_param(struct ProcDecl* proc, struct Param param)
 
 	proc->params[proc->param_count] = param;
 	proc->param_count += 1;
+}
+
+void add_statement(struct ProcDecl* proc, struct Statement statement)
+{
+	if (proc->body_count == proc->body_capacity)
+	{
+		size_t capacity = proc->body_capacity < 8 ? 8 : proc->body_capacity * 2;
+		proc->body = realloc(proc->body, capacity * sizeof(struct Statement));
+		proc->body_capacity = capacity;
+	}
+
+	proc->body[proc->body_count] = statement;
+	proc->body_count += 1;
 }
 
 void add_proc(struct Program* program, struct ProcDecl decl)

@@ -58,6 +58,20 @@ int main(int argc, char** argv)
 				(int)param.reg.length, param.reg.start);
 		}
 		printf(")\n");
+
+		for (size_t s = 0; s < proc.body_count; s += 1)
+		{
+			struct Statement statement = proc.body[s];
+			if (statement.kind == STATEMENT_ASSIGN)
+			{
+				struct AssignStatement assign = statement.assign;
+				printf("  %s%.*s %.*s %.*s\n",
+					assign.target_deref ? "^" : "",
+					(int)assign.target.length, assign.target.start,
+					(int)assign.op.length, assign.op.start,
+					(int)assign.value.length, assign.value.start);
+			}
+		}
 	}
 
 	free_program(&program);

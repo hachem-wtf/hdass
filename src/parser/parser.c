@@ -114,6 +114,56 @@ static bool parse_params(struct Parser* parser, struct ProcDecl* proc)
 	return true;
 }
 
+static bool is_assign_op(enum TokenType type)
+{
+	return type == TOKEN_EQUAL
+		|| type == TOKEN_PLUS_EQUAL
+		|| type == TOKEN_MINUS_EQUAL
+		|| type == TOKEN_STAR_EQUAL
+		|| type == TOKEN_SLASH_EQUAL;
+}
+
+static bool parse_value(struct Parser* parser, struct Token* out)
+{
+	if (check(parser, TOKEN_IDENTIFIER) || check(parser, TOKEN_INTEGER) || check(parser, TOKEN_CHAR))
+	{
+		advance_parser(parser);
+		*out = parser->previous;
+		return true;
+	}
+
+	error_at(parser, parser->current, "expected a value");
+	return false;
+}
+
+static bool parse_statement(struct Parser* parser, struct Statement* out)
+{
+	bool deref = match_token(parser, TOKEN_CARET);
+
+	if (!consume(parser, TOKEN_IDENTIFIER, "expected a statement"))
+		return false;
+	struct Token target = parser->previous;
+
+	if (!is_assign_op(parser->current.type))
+	{
+		error_at(parser, parser->current, "expected an assignment operator");
+		return false;
+	}
+
+	struct AssignStatement assign;
+	assign.target_deref = deref;
+	assign.target = target;
+	advance_parser(parser);
+	assign.op = parser->previous;
+
+	if (!parse_value(parser, &assign.value))
+		return false;
+
+	out->kind = STATEMENT_ASSIGN;
+	out->assign = assign;
+	return true;
+}
+
 static bool parse_proc(struct Parser* parser, struct Program* program)
 {
 	struct ProcDecl decl = create_proc();
@@ -133,27 +183,28 @@ static bool parse_proc(struct Parser* parser, struct Program* program)
 	if (!consume(parser, TOKEN_LEFT_BRACE, "expected '{' to begin procedure body"))
 		goto error;
 
-	// TODO: parse body statements; for now skip the braced block
-	int depth = 1;
-	while (depth > 0)
+	while (!check(parser, TOKEN_RIGHT_BRACE))
 	{
 		if (check(parser, TOKEN_EOF))
 		{
 			error_at(parser, parser->current, "unterminated procedure body");
 			goto error;
 		}
-		if (check(parser, TOKEN_LEFT_BRACE))
-			depth += 1;
-		else if (check(parser, TOKEN_RIGHT_BRACE))
-			depth -= 1;
-		advance_parser(parser);
+
+		struct Statement statement;
+		if (!parse_statement(parser, &statement))
+			goto error;
+
+		add_statement(&decl, statement);
 	}
+	advance_parser(parser);
 
 	add_proc(program, decl);
 	return true;
 
 error:
 	free(decl.params);
+	free(decl.body);
 	return false;
 }
 

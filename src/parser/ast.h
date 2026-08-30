@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdbool.h>
 
 #include "lexer/lexer.h"
 
@@ -22,12 +23,38 @@ struct Param
 	struct Token reg;
 };
 
+enum StatementKind
+{
+	STATEMENT_ASSIGN,
+};
+
+struct AssignStatement
+{
+	bool target_deref;
+	struct Token target;
+	struct Token op;
+	struct Token value;
+};
+
+struct Statement
+{
+	enum StatementKind kind;
+	union
+	{
+		struct AssignStatement assign;
+	};
+};
+
 struct ProcDecl
 {
 	struct Token name;
 	struct Param* params;
 	size_t param_count;
 	size_t param_capacity;
+
+	struct Statement* body;
+	size_t body_count;
+	size_t body_capacity;
 };
 
 struct Program
@@ -52,4 +79,5 @@ void add_data(struct Program* program, struct DataDecl decl);
 
 struct ProcDecl create_proc(void);
 void add_param(struct ProcDecl* proc, struct Param param);
+void add_statement(struct ProcDecl* proc, struct Statement statement);
 void add_proc(struct Program* program, struct ProcDecl decl);

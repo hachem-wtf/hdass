@@ -55,14 +55,30 @@ static void test_parse_proc_params(struct TestContext* context)
 	free_program(&program);
 }
 
-static void test_parse_proc_body_skipped(struct TestContext* context)
+static void test_parse_proc_body(struct TestContext* context)
 {
-	struct Lexer lexer = create_lexer("proc main\n{\nrax = 1\nsyscall\n}\n");
+	struct Lexer lexer = create_lexer("proc main\n{\nrax = 1\nrcx -= 1\n^rsi = rdx\n}\n");
 	struct Program program;
 
 	check(context, parse_program(&lexer, &program));
 	check(context, program.proc_count == 1);
-	check(context, program.procs[0].param_count == 0);
+	check(context, program.procs[0].body_count == 3);
+
+	struct Statement first = program.procs[0].body[0];
+	check(context, first.kind == STATEMENT_ASSIGN);
+	check(context, !first.assign.target_deref);
+	check(context, text_is(first.assign.target, "rax"));
+	check(context, text_is(first.assign.op, "="));
+	check(context, text_is(first.assign.value, "1"));
+
+	struct Statement second = program.procs[0].body[1];
+	check(context, text_is(second.assign.target, "rcx"));
+	check(context, text_is(second.assign.op, "-="));
+
+	struct Statement third = program.procs[0].body[2];
+	check(context, third.assign.target_deref);
+	check(context, text_is(third.assign.target, "rsi"));
+	check(context, text_is(third.assign.value, "rdx"));
 
 	free_program(&program);
 }
@@ -89,6 +105,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_consts(context);
 	test_parse_data(context);
 	test_parse_proc_params(context);
-	test_parse_proc_body_skipped(context);
+	test_parse_proc_body(context);
 	test_parse_errors(context);
 }
