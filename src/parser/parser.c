@@ -58,6 +58,25 @@ static bool parse_const(struct Parser* parser, struct Program* program)
 	return true;
 }
 
+static bool parse_data(struct Parser* parser, struct Program* program)
+{
+	struct DataDecl decl;
+
+	if (!consume(parser, TOKEN_IDENTIFIER, "expected data name after 'data'"))
+		return false;
+	decl.name = parser->previous;
+
+	if (!consume(parser, TOKEN_EQUAL, "expected '=' after data name"))
+		return false;
+
+	if (!consume(parser, TOKEN_STRING, "expected string value after '='"))
+		return false;
+	decl.value = parser->previous;
+
+	add_data(program, decl);
+	return true;
+}
+
 bool parse_program(struct Lexer* lexer, struct Program* out)
 {
 	struct Parser parser;
@@ -73,6 +92,12 @@ bool parse_program(struct Lexer* lexer, struct Program* out)
 		{
 			advance_parser(&parser);
 			if (!parse_const(&parser, out))
+				return false;
+		}
+		else if (check(&parser, TOKEN_DATA))
+		{
+			advance_parser(&parser);
+			if (!parse_data(&parser, out))
 				return false;
 		}
 		else

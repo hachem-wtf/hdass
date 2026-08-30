@@ -38,6 +38,14 @@ int main(int argc, char** argv)
 			(int)decl.value.length, decl.value.start);
 	}
 
+	for (size_t i = 0; i < program.data_count; i += 1)
+	{
+		struct DataDecl decl = program.data_decls[i];
+		printf("data %.*s = %.*s\n",
+			(int)decl.name.length, decl.name.start,
+			(int)decl.value.length, decl.value.start);
+	}
+
 	free_program(&program);
 	free_file(&source);
 }
