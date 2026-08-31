@@ -1,7 +1,6 @@
 bin/
 bin-int/
 
-# premake-generated files
 Makefile
 *.make
 *.sln
@@ -11,4 +10,6 @@ Makefile
 compile_commands.json
 compile_flags.txt
 .clangd
+
+.DS_Store
 

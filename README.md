@@ -33,6 +33,9 @@ proc main
 
 The program still directly controls the registers used for the system calls. Nothing is hiding what the program is doing. More examples can be found in [examples/](examples/).
 
+## Documentation
+The full language reference — directives, declarations, statements, expressions, registers and extensions — lives in [docs/language.md](docs/language.md).
+
 ## Building
 The build is driven by [premake5](https://premake.github.io/). Generate the makefiles and build the compiler:
 ```bash
