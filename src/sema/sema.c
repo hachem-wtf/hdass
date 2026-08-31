@@ -1,12 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "sema/sema.h"
+
+static bool token_is(struct Token token, const char* text)
+{
+	size_t length = strlen(text);
+	return token.length == length && memcmp(token.start, text, length) == 0;
+}
 
 static bool names_equal(struct Token a, struct Token b)
 {
 	return a.length == b.length && memcmp(a.start, b.start, a.length) == 0;
+}
+
+static struct ProcDecl* find_proc(struct Program* program, struct Token name)
+{
+	for (size_t i = 0; i < program->proc_count; i += 1)
+		if (names_equal(program->procs[i].name, name))
+			return &program->procs[i];
+
+	return NULL;
 }
 
 static bool check_duplicate_names(struct Source source, struct Program* program)
@@ -54,16 +70,248 @@ static bool check_entry_point(struct Source source, struct Program* program)
 	if (!program->config.has_entry)
 		return true;
 
-	struct Token entry = program->config.entry;
-	for (size_t i = 0; i < program->proc_count; i += 1)
-		if (names_equal(program->procs[i].name, entry))
-			return true;
+	if (find_proc(program, program->config.entry) != NULL)
+		return true;
 
+	struct Token entry = program->config.entry;
 	char message[128];
 	snprintf(message, sizeof(message), "entry point '%.*s' is not defined",
 		(int)entry.length, entry.start);
 	report_error(source, entry, message);
 	return false;
+}
+
+struct RefCheck
+{
+	struct Source source;
+	struct Program* program;
+	struct ProcDecl* proc;
+	bool ok;
+};
+
+static void ref_error(struct RefCheck* check, struct Token token, const char* format, ...)
+{
+	char message[256];
+	va_list args;
+	va_start(args, format);
+	vsnprintf(message, sizeof(message), format, args);
+	va_end(args);
+
+	report_error(check->source, token, message);
+	check->ok = false;
+}
+
+static bool is_arch_register(struct Token token)
+{
+	static const char* names[] = {
+		"rax", "eax", "ax", "al", "ah",
+		"rbx", "ebx", "bx", "bl", "bh",
+		"rcx", "ecx", "cx", "cl", "ch",
+		"rdx", "edx", "dx", "dl", "dh",
+		"rsi", "esi", "si", "sil",
+		"rdi", "edi", "di", "dil",
+		"rbp", "ebp", "bp", "bpl",
+		"rsp", "esp", "sp", "spl",
+		"r8",  "r8d",  "r8w",  "r8b",
+		"r9",  "r9d",  "r9w",  "r9b",
+		"r10", "r10d", "r10w", "r10b",
+		"r11", "r11d", "r11w", "r11b",
+		"r12", "r12d", "r12w", "r12b",
+		"r13", "r13d", "r13w", "r13b",
+		"r14", "r14d", "r14w", "r14b",
+		"r15", "r15d", "r15w", "r15b",
+		"rip",
+	};
+
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i += 1)
+		if (token_is(token, names[i]))
+			return true;
+
+	return false;
+}
+
+static bool is_logical_register(struct Token token)
+{
+	if (token.length < 2 || token.start[0] != 'r')
+		return false;
+
+	uint32_t index = 0;
+	for (size_t i = 1; i < token.length; i += 1)
+	{
+		char digit = token.start[i];
+		if (digit < '0' || digit > '9')
+			return false;
+		index = index * 10 + (uint32_t)(digit - '0');
+	}
+
+	return index >= 1 && index <= 14;
+}
+
+static bool is_register(struct RefCheck* check, struct Token token)
+{
+	if (is_arch_register(token))
+		return true;
+
+	return check->program->config.logical_registers && is_logical_register(token);
+}
+
+static bool is_param(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->proc->param_count; i += 1)
+		if (names_equal(check->proc->params[i].name, token))
+			return true;
+
+	return false;
+}
+
+static bool is_const(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->program->const_count; i += 1)
+		if (names_equal(check->program->consts[i].name, token))
+			return true;
+
+	return false;
+}
+
+static bool is_data(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->program->data_count; i += 1)
+		if (names_equal(check->program->data_decls[i].name, token))
+			return true;
+
+	return false;
+}
+
+static bool is_stack_buffer(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->proc->body_count; i += 1)
+	{
+		struct Statement* statement = &check->proc->body[i];
+		if (statement->kind == STATEMENT_STACK && names_equal(statement->stack.name, token))
+			return true;
+	}
+
+	return false;
+}
+
+static bool is_label(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->proc->body_count; i += 1)
+	{
+		struct Statement* statement = &check->proc->body[i];
+		if (statement->kind == STATEMENT_LABEL && names_equal(statement->label.name, token))
+			return true;
+	}
+
+	return false;
+}
+
+static void check_value_name(struct RefCheck* check, struct Token name)
+{
+	if (is_register(check, name) || is_param(check, name) || is_const(check, name)
+		|| is_data(check, name) || is_stack_buffer(check, name))
+		return;
+
+	ref_error(check, name, "undefined name '%.*s'", (int)name.length, name.start);
+}
+
+static void check_expr(struct RefCheck* check, struct Expr* expr)
+{
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+			if (expr->primary.token.type == TOKEN_IDENTIFIER)
+				check_value_name(check, expr->primary.token);
+			break;
+		case EXPR_BINARY:
+			check_expr(check, expr->binary.left);
+			check_expr(check, expr->binary.right);
+			break;
+		case EXPR_MEMBER:
+		{
+			struct Expr* object = expr->member.object;
+			struct Token member = expr->member.member;
+
+			if (member.type == TOKEN_INTEGER)
+			{
+				if (object->kind != EXPR_PRIMARY || !is_register(check, object->primary.token))
+					ref_error(check, member, "size suffix requires a register");
+			}
+			else if (object->kind != EXPR_PRIMARY || !is_data(check, object->primary.token))
+			{
+				check_expr(check, object);
+			}
+			else if (!token_is(member, "len"))
+			{
+				ref_error(check, member, "unknown member '%.*s'", (int)member.length, member.start);
+			}
+			break;
+		}
+	}
+}
+
+static void check_target(struct RefCheck* check, struct Token target)
+{
+	if (is_register(check, target) || is_param(check, target))
+		return;
+
+	ref_error(check, target, "cannot assign to '%.*s': not a register", (int)target.length, target.start);
+}
+
+static void check_statement(struct RefCheck* check, struct Statement* statement)
+{
+	switch (statement->kind)
+	{
+		case STATEMENT_ASSIGN:
+			check_target(check, statement->assign.target);
+			check_expr(check, statement->assign.value);
+			break;
+		case STATEMENT_GOTO:
+			if (!is_label(check, statement->jump.label))
+				ref_error(check, statement->jump.label, "undefined label '%.*s'",
+					(int)statement->jump.label.length, statement->jump.label.start);
+			break;
+		case STATEMENT_IF:
+			check_expr(check, statement->branch.left);
+			check_expr(check, statement->branch.right);
+			check_statement(check, statement->branch.body);
+			break;
+		case STATEMENT_CALL:
+		{
+			struct CallStatement* call = &statement->call;
+			struct ProcDecl* callee = find_proc(check->program, call->name);
+			if (callee == NULL)
+				ref_error(check, call->name, "undefined procedure '%.*s'",
+					(int)call->name.length, call->name.start);
+			else if (callee->param_count != call->arg_count)
+				ref_error(check, call->name, "'%.*s' expects %zu argument(s), got %zu",
+					(int)call->name.length, call->name.start, callee->param_count, call->arg_count);
+
+			for (size_t i = 0; i < call->arg_count; i += 1)
+				check_expr(check, call->args[i]);
+			break;
+		}
+		case STATEMENT_LABEL:
+		case STATEMENT_SYSCALL:
+		case STATEMENT_STACK:
+			break;
+	}
+}
+
+static bool check_references(struct Source source, struct Program* program)
+{
+	bool ok = true;
+	for (size_t i = 0; i < program->proc_count; i += 1)
+	{
+		struct RefCheck check = { source, program, &program->procs[i], true };
+		for (size_t j = 0; j < program->procs[i].body_count; j += 1)
+			check_statement(&check, &program->procs[i].body[j]);
+
+		if (!check.ok)
+			ok = false;
+	}
+
+	return ok;
 }
 
 bool analyze_program(struct Source source, struct Program* program)
@@ -73,6 +321,8 @@ bool analyze_program(struct Source source, struct Program* program)
 	if (!check_duplicate_names(source, program))
 		ok = false;
 	if (!check_entry_point(source, program))
+		ok = false;
+	if (!check_references(source, program))
 		ok = false;
 
 	return ok;
