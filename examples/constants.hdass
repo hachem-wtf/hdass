@@ -1,0 +1,15 @@
+[entry: main]
+
+// The exit status is folded from constant arithmetic, and SYS_EXIT is a hex
+// literal. STATUS = 6 * 7 = 42.
+const A = 6
+const B = 7
+const STATUS = A * B
+const SYS_EXIT = 0x3C
+
+proc main
+{
+    rdi = STATUS
+    rax = SYS_EXIT
+    syscall
+}

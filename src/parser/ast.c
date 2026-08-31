@@ -78,6 +78,8 @@ struct Program create_program(void)
 
 void free_program(struct Program* program)
 {
+	for (size_t i = 0; i < program->const_count; i += 1)
+		free_expr(program->consts[i].value);
 	free(program->consts);
 	free(program->data_decls);
 

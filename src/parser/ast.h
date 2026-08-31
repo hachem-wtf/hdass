@@ -9,7 +9,7 @@
 struct ConstDecl
 {
 	struct Token name;
-	struct Token value;
+	struct Expr* value;
 };
 
 struct DataDecl

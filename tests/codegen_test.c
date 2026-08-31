@@ -21,7 +21,7 @@ static void test_generate_consts_and_data(struct TestContext* context)
 	buffer[read] = '\0';
 	fclose(out);
 
-	check(context, strstr(buffer, "%define N 5") != NULL);
+	check(context, strstr(buffer, "%define N (5)") != NULL);
 	check(context, strstr(buffer, "section .data") != NULL);
 	check(context, strstr(buffer, "msg: db `hi`") != NULL);
 	check(context, strstr(buffer, ".len equ $ - msg") != NULL);

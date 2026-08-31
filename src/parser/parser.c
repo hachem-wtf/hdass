@@ -52,6 +52,8 @@ static bool consume(struct Parser* parser, enum TokenType type, const char* mess
 	return false;
 }
 
+static struct Expr* parse_expression(struct Parser* parser);
+
 static bool parse_const(struct Parser* parser, struct Program* program)
 {
 	struct ConstDecl decl;
@@ -63,9 +65,9 @@ static bool parse_const(struct Parser* parser, struct Program* program)
 	if (!consume(parser, TOKEN_EQUAL, "expected '=' after constant name"))
 		return false;
 
-	if (!consume(parser, TOKEN_INTEGER, "expected integer value after '='"))
+	decl.value = parse_expression(parser);
+	if (decl.value == NULL)
 		return false;
-	decl.value = parser->previous;
 
 	add_const(program, decl);
 	return true;

@@ -15,6 +15,13 @@ static bool is_digit(char character)
 	return character >= '0' && character <= '9';
 }
 
+static bool is_hex_digit(char character)
+{
+	return is_digit(character)
+		|| (character >= 'a' && character <= 'f')
+		|| (character >= 'A' && character <= 'F');
+}
+
 static enum TokenType identifier_type(const char* start, size_t length)
 {
 	static const struct Keyword
@@ -177,8 +184,23 @@ struct Token scan_token(struct Lexer* lexer)
 
 	if (is_digit(character))
 	{
-		while (is_digit(peek(lexer)))
+		if (character == '0' && (peek(lexer) == 'x' || peek(lexer) == 'X'))
+		{
 			advance(lexer);
+			while (is_hex_digit(peek(lexer)))
+				advance(lexer);
+		}
+		else if (character == '0' && (peek(lexer) == 'b' || peek(lexer) == 'B'))
+		{
+			advance(lexer);
+			while (peek(lexer) == '0' || peek(lexer) == '1')
+				advance(lexer);
+		}
+		else
+		{
+			while (is_digit(peek(lexer)))
+				advance(lexer);
+		}
 		return make_token(lexer, TOKEN_INTEGER, start);
 	}
 

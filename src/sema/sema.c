@@ -81,6 +81,65 @@ static bool check_entry_point(struct Source source, struct Program* program)
 	return false;
 }
 
+static bool is_program_const(struct Program* program, struct Token name)
+{
+	for (size_t i = 0; i < program->const_count; i += 1)
+		if (names_equal(program->consts[i].name, name))
+			return true;
+
+	return false;
+}
+
+static struct Token first_token(struct Expr* expr)
+{
+	switch (expr->kind)
+	{
+		case EXPR_BINARY: return first_token(expr->binary.left);
+		case EXPR_MEMBER: return first_token(expr->member.object);
+		case EXPR_DEREF:  return first_token(expr->deref.address);
+		default:          return expr->primary.token;
+	}
+}
+
+static bool check_const_value(struct Source source, struct Program* program, struct Expr* expr)
+{
+	if (expr->kind == EXPR_BINARY)
+	{
+		bool left = check_const_value(source, program, expr->binary.left);
+		bool right = check_const_value(source, program, expr->binary.right);
+		return left && right;
+	}
+
+	if (expr->kind == EXPR_PRIMARY)
+	{
+		struct Token token = expr->primary.token;
+		if (token.type == TOKEN_INTEGER || token.type == TOKEN_CHAR)
+			return true;
+
+		if (token.type == TOKEN_IDENTIFIER && is_program_const(program, token))
+			return true;
+
+		char message[128];
+		snprintf(message, sizeof(message), "'%.*s' is not a constant",
+			(int)token.length, token.start);
+		report_error(source, token, message);
+		return false;
+	}
+
+	report_error(source, first_token(expr), "constant must be an integer expression");
+	return false;
+}
+
+static bool check_const_values(struct Source source, struct Program* program)
+{
+	bool ok = true;
+	for (size_t i = 0; i < program->const_count; i += 1)
+		if (!check_const_value(source, program, program->consts[i].value))
+			ok = false;
+
+	return ok;
+}
+
 struct RefCheck
 {
 	struct Source source;
@@ -334,6 +393,8 @@ bool analyze_program(struct Source source, struct Program* program)
 	if (!check_duplicate_names(source, program))
 		ok = false;
 	if (!check_entry_point(source, program))
+		ok = false;
+	if (!check_const_values(source, program))
 		ok = false;
 	if (!check_references(source, program))
 		ok = false;

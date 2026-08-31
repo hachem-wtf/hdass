@@ -76,6 +76,21 @@ static void test_assign_to_const(struct TestContext* context)
 	check(context, !analyze_source("const K = 5\nproc main\n{\nK = 1\n}\n"));
 }
 
+static void test_const_expr_ok(struct TestContext* context)
+{
+	check(context, analyze_source("const A = 1\nconst B = A + 2 * 3\nproc main\n{\nsyscall\n}\n"));
+}
+
+static void test_const_expr_rejects_register(struct TestContext* context)
+{
+	check(context, !analyze_source("const X = rax + 1\nproc main\n{\nsyscall\n}\n"));
+}
+
+static void test_const_expr_rejects_data(struct TestContext* context)
+{
+	check(context, !analyze_source("data d = \"x\"\nconst X = d\nproc main\n{\nsyscall\n}\n"));
+}
+
 static void test_deref_needs_register(struct TestContext* context)
 {
 	check(context, !analyze_source("proc main\n{\nrax = ^MISSING\n}\n"));
@@ -114,6 +129,9 @@ void run_sema_tests(struct TestContext* context)
 	test_undefined_call(context);
 	test_call_arg_count(context);
 	test_assign_to_const(context);
+	test_const_expr_ok(context);
+	test_const_expr_rejects_register(context);
+	test_const_expr_rejects_data(context);
 	test_deref_needs_register(context);
 	test_references_resolve(context);
 }

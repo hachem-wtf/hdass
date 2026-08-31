@@ -6,14 +6,31 @@
 
 #include "codegen/nasm.h"
 
+static void emit_const_expr(struct Expr* expr, FILE* out)
+{
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+			fprintf(out, "%.*s", (int)expr->primary.token.length, expr->primary.token.start);
+			break;
+		case EXPR_BINARY:
+			emit_const_expr(expr->binary.left, out);
+			fprintf(out, " %.*s ", (int)expr->binary.op.length, expr->binary.op.start);
+			emit_const_expr(expr->binary.right, out);
+			break;
+		default:
+			break;
+	}
+}
+
 static void emit_consts(struct Program* program, FILE* out)
 {
 	for (size_t i = 0; i < program->const_count; i += 1)
 	{
 		struct ConstDecl decl = program->consts[i];
-		fprintf(out, "%%define %.*s %.*s\n",
-			(int)decl.name.length, decl.name.start,
-			(int)decl.value.length, decl.value.start);
+		fprintf(out, "%%define %.*s (", (int)decl.name.length, decl.name.start);
+		emit_const_expr(decl.value, out);
+		fprintf(out, ")\n");
 	}
 }
 
@@ -125,6 +142,27 @@ static struct Token resolve_register(struct Emitter* emitter, struct Token token
 
 static uint64_t token_to_u64(struct Token token)
 {
+	if (token.length > 2 && token.start[0] == '0' && (token.start[1] == 'x' || token.start[1] == 'X'))
+	{
+		uint64_t value = 0;
+		for (size_t i = 2; i < token.length; i += 1)
+		{
+			char digit = token.start[i];
+			uint64_t nibble = digit <= '9' ? (uint64_t)(digit - '0')
+				: (uint64_t)((digit | 0x20) - 'a' + 10);
+			value = value * 16 + nibble;
+		}
+		return value;
+	}
+
+	if (token.length > 2 && token.start[0] == '0' && (token.start[1] == 'b' || token.start[1] == 'B'))
+	{
+		uint64_t value = 0;
+		for (size_t i = 2; i < token.length; i += 1)
+			value = value * 2 + (uint64_t)(token.start[i] - '0');
+		return value;
+	}
+
 	uint64_t value = 0;
 	for (size_t i = 0; i < token.length; i += 1)
 		value = value * 10 + (uint64_t)(token.start[i] - '0');

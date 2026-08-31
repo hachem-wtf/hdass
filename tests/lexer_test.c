@@ -20,6 +20,14 @@ static void test_identifiers_and_integers(struct TestContext* context)
 	check(context, scan_token(&lexer).type == TOKEN_EOF);
 }
 
+static void test_number_bases(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("42 0x1F 0b1010");
+	check(context, token_matches(scan_token(&lexer), TOKEN_INTEGER, "42"));
+	check(context, token_matches(scan_token(&lexer), TOKEN_INTEGER, "0x1F"));
+	check(context, token_matches(scan_token(&lexer), TOKEN_INTEGER, "0b1010"));
+}
+
 static void test_operators(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("= == += != /");
@@ -76,6 +84,7 @@ static void test_comments(struct TestContext* context)
 void run_lexer_tests(struct TestContext* context)
 {
 	test_identifiers_and_integers(context);
+	test_number_bases(context);
 	test_operators(context);
 	test_literals(context);
 	test_keywords(context);

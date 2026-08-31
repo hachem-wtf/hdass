@@ -23,9 +23,25 @@ static void test_parse_consts(struct TestContext* context)
 	check(context, parse_program(&lexer, &program));
 	check(context, program.const_count == 2);
 	check(context, text_is(program.consts[0].name, "A"));
-	check(context, text_is(program.consts[0].value, "1"));
+	check(context, primary_is(program.consts[0].value, "1"));
 	check(context, text_is(program.consts[1].name, "B"));
-	check(context, text_is(program.consts[1].value, "60"));
+	check(context, primary_is(program.consts[1].value, "60"));
+
+	free_program(&program);
+}
+
+static void test_parse_const_expr(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("const A = 1\nconst B = A + 2 * 3\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+
+	struct Expr* value = program.consts[1].value;
+	check(context, value->kind == EXPR_BINARY);
+	check(context, text_is(value->binary.op, "+"));
+	check(context, primary_is(value->binary.left, "A"));
+	check(context, value->binary.right->kind == EXPR_BINARY);
 
 	free_program(&program);
 }
@@ -271,6 +287,7 @@ static void test_parse_errors(struct TestContext* context)
 void run_parser_tests(struct TestContext* context)
 {
 	test_parse_consts(context);
+	test_parse_const_expr(context);
 	test_parse_data(context);
 	test_parse_proc_params(context);
 	test_parse_proc_body(context);

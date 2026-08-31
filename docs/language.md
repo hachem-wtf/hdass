@@ -50,10 +50,12 @@ Unknown keys, a `bits` value other than 32/64, and unknown extensions are errors
 
 ## Constants and data
 
-`const` names an integer (becomes a NASM `%define`). `data` puts a string in `.data`; the name is its address and `.len` is its length in bytes.
+`const` names a constant integer expression — integer literals, character literals, other constants, and `+` `-` `*` `/`. Integers are decimal, `0x` hex, or `0b` binary (these forms work anywhere an integer does). `data` puts a string in `.data`; the name is its address and `.len` is its length in bytes.
 
 ```hdass
 const STDOUT = 1
+const MASK = 0xFF
+const AREA = 8 * 6             // 48
 data message = "type shi.\n"   // message -> address, message.len -> 10
 ```
 
