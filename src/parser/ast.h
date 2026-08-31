@@ -148,7 +148,7 @@ struct CallStatement
 struct StackStatement
 {
 	struct Token name;
-	struct Token size;
+	struct Expr* size;
 };
 
 struct Statement

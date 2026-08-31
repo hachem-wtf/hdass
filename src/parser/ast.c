@@ -44,6 +44,9 @@ static void free_statement(struct Statement* statement)
 				free_expr(statement->call.args[i]);
 			free(statement->call.args);
 			break;
+		case STATEMENT_STACK:
+			free_expr(statement->stack.size);
+			break;
 		default:
 			break;
 	}

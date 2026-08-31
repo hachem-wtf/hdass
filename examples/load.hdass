@@ -8,9 +8,9 @@ proc main
     stack cell[8]
 
     rbx = 7
-    rsi = cell        // address of the cell
-    ^rsi = rbx        // store
-    rdi = ^rsi        // load it back
+    rsi = cell // address of the cell
+    ^rsi = rbx // store
+    rdi = ^rsi // load it back
 
     rax = SYS_EXIT
     syscall

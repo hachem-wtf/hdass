@@ -191,6 +191,8 @@ static bool is_arch_register(struct Token token)
 		"r14", "r14d", "r14w", "r14b",
 		"r15", "r15d", "r15w", "r15b",
 		"rip",
+		"xmm0", "xmm1", "xmm2",  "xmm3",  "xmm4",  "xmm5",  "xmm6",  "xmm7",
+		"xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
 	};
 
 	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); i += 1)
@@ -392,6 +394,43 @@ static void check_target(struct RefCheck* check, struct Token target)
 	ref_error(check, target, "cannot assign to '%.*s': not a register", (int)target.length, target.start);
 }
 
+// a stack size must be a compile-time constant: integer/char literals, other
+// constants, enum values, struct sizes/offsets, and arithmetic over them
+static void check_stack_size(struct RefCheck* check, struct Expr* expr)
+{
+	switch (expr->kind)
+	{
+		case EXPR_BINARY:
+			check_stack_size(check, expr->binary.left);
+			check_stack_size(check, expr->binary.right);
+			break;
+		case EXPR_MEMBER:
+		{
+			struct Expr* object = expr->member.object;
+			if (object->kind == EXPR_PRIMARY
+				&& (find_enum(check, object->primary.token) != NULL
+					|| find_struct(check, object->primary.token) != NULL))
+				check_expr(check, expr);
+			else
+				ref_error(check, first_token(expr), "stack size must be a constant");
+			break;
+		}
+		case EXPR_PRIMARY:
+		{
+			struct Token token = expr->primary.token;
+			if (token.type == TOKEN_INTEGER || token.type == TOKEN_CHAR)
+				break;
+			if (token.type == TOKEN_IDENTIFIER && is_const(check, token))
+				break;
+			ref_error(check, token, "stack size must be a constant");
+			break;
+		}
+		default:
+			ref_error(check, first_token(expr), "stack size must be a constant");
+			break;
+	}
+}
+
 static void check_statement(struct RefCheck* check, struct Statement* statement)
 {
 	switch (statement->kind)
@@ -425,9 +464,11 @@ static void check_statement(struct RefCheck* check, struct Statement* statement)
 				check_expr(check, call->args[i]);
 			break;
 		}
+		case STATEMENT_STACK:
+			check_stack_size(check, statement->stack.size);
+			break;
 		case STATEMENT_LABEL:
 		case STATEMENT_SYSCALL:
-		case STATEMENT_STACK:
 			break;
 	}
 }

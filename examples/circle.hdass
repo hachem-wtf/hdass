@@ -1,0 +1,17 @@
+[entry: main]
+
+// Floating-point math on the SSE registers. Computes the area of a circle
+// (pi * r * r) with r = 3, then exits with the truncated result (28).
+const SYS_EXIT = 60
+
+proc main
+{
+    xmm0 = 3.0        // radius
+    xmm0 *= xmm0      // r * r = 9.0
+    xmm1 = 3.14159    // pi
+    xmm0 *= xmm1      // area ~= 28.27
+
+    rdi = xmm0        // truncate to int -> 28
+    rax = SYS_EXIT
+    syscall
+}

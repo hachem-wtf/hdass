@@ -191,18 +191,28 @@ struct Token scan_token(struct Lexer* lexer)
 			advance(lexer);
 			while (is_hex_digit(peek(lexer)))
 				advance(lexer);
+			return make_token(lexer, TOKEN_INTEGER, start);
 		}
-		else if (character == '0' && (peek(lexer) == 'b' || peek(lexer) == 'B'))
+
+		if (character == '0' && (peek(lexer) == 'b' || peek(lexer) == 'B'))
 		{
 			advance(lexer);
 			while (peek(lexer) == '0' || peek(lexer) == '1')
 				advance(lexer);
+			return make_token(lexer, TOKEN_INTEGER, start);
 		}
-		else
+
+		while (is_digit(peek(lexer)))
+			advance(lexer);
+
+		if (peek(lexer) == '.' && is_digit(lexer->current[1]))
 		{
+			advance(lexer);
 			while (is_digit(peek(lexer)))
 				advance(lexer);
+			return make_token(lexer, TOKEN_FLOAT, start);
 		}
+
 		return make_token(lexer, TOKEN_INTEGER, start);
 	}
 
@@ -244,6 +254,7 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_EOF:           return "eof";
 		case TOKEN_IDENTIFIER:    return "identifier";
 		case TOKEN_INTEGER:       return "integer";
+		case TOKEN_FLOAT:         return "float";
 		case TOKEN_STRING:        return "string";
 		case TOKEN_CHAR:          return "char";
 		case TOKEN_CONST:         return "const";

@@ -79,6 +79,11 @@ Or, from the host, run the whole suite (unit tests plus the example tests) in on
 ./scripts/docker_test.sh
 ```
 
+To build, assemble, link and run a single program in the container:
+```bash
+./scripts/run.sh examples/circle.hdass
+```
+
 When you're finished, stop and remove the container:
 ```bash
 docker compose down

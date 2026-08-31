@@ -28,6 +28,14 @@ static void test_number_bases(struct TestContext* context)
 	check(context, token_matches(scan_token(&lexer), TOKEN_INTEGER, "0b1010"));
 }
 
+static void test_float_literals(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("3.14 1.0 42");
+	check(context, token_matches(scan_token(&lexer), TOKEN_FLOAT, "3.14"));
+	check(context, token_matches(scan_token(&lexer), TOKEN_FLOAT, "1.0"));
+	check(context, scan_token(&lexer).type == TOKEN_INTEGER);
+}
+
 static void test_operators(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("= == += != /");
@@ -92,6 +100,7 @@ void run_lexer_tests(struct TestContext* context)
 {
 	test_identifiers_and_integers(context);
 	test_number_bases(context);
+	test_float_literals(context);
 	test_operators(context);
 	test_literals(context);
 	test_keywords(context);

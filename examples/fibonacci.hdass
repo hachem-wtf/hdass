@@ -43,7 +43,7 @@ proc main
 {
     r12 = 0
     r13 = 1
-    r15 = 10      // syscall clobbers rcx/r11, so keep the counter in r15
+    r15 = 10 // syscall clobbers rcx/r11, so keep the counter in r15
 
 loop:
     print_number(r12)

@@ -199,7 +199,7 @@ static void test_parse_stack(struct TestContext* context)
 	struct Statement statement = program.procs[0].body[0];
 	check(context, statement.kind == STATEMENT_STACK);
 	check(context, text_is(statement.stack.name, "buffer"));
-	check(context, text_is(statement.stack.size, "32"));
+	check(context, primary_is(statement.stack.size, "32"));
 
 	free_program(&program);
 }

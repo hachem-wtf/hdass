@@ -248,7 +248,8 @@ static struct Expr* parse_primary(struct Parser* parser)
 		return deref;
 	}
 
-	if (check(parser, TOKEN_IDENTIFIER) || check(parser, TOKEN_INTEGER) || check(parser, TOKEN_CHAR))
+	if (check(parser, TOKEN_IDENTIFIER) || check(parser, TOKEN_INTEGER)
+		|| check(parser, TOKEN_FLOAT) || check(parser, TOKEN_CHAR))
 	{
 		advance_parser(parser);
 
@@ -439,12 +440,15 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 		if (!consume(parser, TOKEN_LEFT_BRACKET, "expected '[' after buffer name"))
 			return false;
 
-		if (!consume(parser, TOKEN_INTEGER, "expected buffer size"))
+		struct Expr* size = parse_expression(parser);
+		if (size == NULL)
 			return false;
-		struct Token size = parser->previous;
 
 		if (!consume(parser, TOKEN_RIGHT_BRACKET, "expected ']' after buffer size"))
+		{
+			free_expr(size);
 			return false;
+		}
 
 		out->kind = STATEMENT_STACK;
 		out->stack.name = name;

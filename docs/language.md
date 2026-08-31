@@ -90,7 +90,7 @@ rsi += Point.y       // add rsi, 8
 rax = Point.size     // mov rax, 17
 ```
 
-A struct is layout only — it allocates nothing. Pair it with a `stack` buffer and pointer arithmetic (see [examples/records.hdass](../examples/records.hdass)).
+A struct is layout only — it allocates nothing. Pair it with a `stack` buffer sized by `Name.size` and pointer arithmetic (see [examples/records.hdass](../examples/records.hdass)).
 
 ## Procedures
 
@@ -122,7 +122,7 @@ if rcx != 0         // == != < <= > >= ; runs the next statement only
     goto loop
 syscall
 print_number(r12)   // call; args go into the callee's parameter registers
-stack buffer[32]    // stack buffer; buffer is its base address
+stack buf[Point.size] // stack buffer (size is any constant); buf is its base address
 ```
 
 ## Dereference (`^`)
@@ -187,6 +187,38 @@ r1.64               // rax
 ```
 
 Arch `r8`–`r15` share the `rN` spelling, so with the extension on a bare `r8` is the *logical* register (which is arch `r9`). Reach arch `r8`–`r15` through logical `r7`–`r14`. Architecture names like `rax` and `rsi` still work everywhere.
+
+## Floating point
+
+Floating-point values live in the SSE registers `xmm0`–`xmm15` (double precision). Float literals like `3.14` are placed in `.data` and loaded for you.
+
+```hdass
+xmm0 = 3.5          // movsd from a .data slot
+xmm0 *= xmm1        // += -= *= /=  ->  addsd subsd mulsd divsd
+```
+
+An `=` between a float register and a general-purpose register converts:
+
+```hdass
+xmm0 = rax          // int -> float          (cvtsi2sd)
+rbx = xmm0          // float -> int, truncating (cvttsd2si)
+```
+
+`^` loads and stores floats too, so float state can live in memory (a `stack` buffer or struct):
+
+```hdass
+^rsi = xmm0         // movsd [rsi], xmm0
+xmm1 = ^rsi         // movsd xmm1, [rsi]
+```
+
+`if` compares floats too, when the left side is an `xmm` register (`ucomisd`):
+
+```hdass
+if xmm0 > 4.0
+    goto escaped
+```
+
+See [examples/mandelbrot.hdass](../examples/mandelbrot.hdass) for a float program. Not yet supported: mixing floats and ints in one expression, and printing floats.
 
 ## Building a program
 

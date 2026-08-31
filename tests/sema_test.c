@@ -97,6 +97,14 @@ static void test_deref_needs_register(struct TestContext* context)
 	check(context, analyze_source("proc main\n{\nrax = ^rsi\n}\n"));
 }
 
+static void test_stack_size_constant(struct TestContext* context)
+{
+	check(context, analyze_source(
+		"struct P\n{\nx\ny\n}\nconst N = 4\n"
+		"proc main\n{\nstack a[P.size]\nstack b[N * 2]\nsyscall\n}\n"));
+	check(context, !analyze_source("proc main\n{\nstack a[rax]\n}\n"));
+}
+
 static void test_enum_struct_members(struct TestContext* context)
 {
 	check(context, analyze_source(
@@ -144,6 +152,7 @@ void run_sema_tests(struct TestContext* context)
 	test_const_expr_rejects_register(context);
 	test_const_expr_rejects_data(context);
 	test_deref_needs_register(context);
+	test_stack_size_constant(context);
 	test_enum_struct_members(context);
 	test_references_resolve(context);
 }

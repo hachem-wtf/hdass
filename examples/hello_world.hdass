@@ -14,7 +14,7 @@ proc main
     rsi = message
     rdx = message.len
     syscall
-    
+
     rax = SYS_EXIT
     rdi = 0
     syscall

@@ -1,0 +1,144 @@
+[entry: main]
+[enable: logical_registers]
+
+// Renders the Mandelbrot set as ASCII art. The evolving z value is kept in a
+// Complex struct on the stack (accessed through its field offsets), while the
+// per-pixel constant c stays in xmm2/xmm3. Uses double-precision floats and the
+// logical_registers extension (r1..r14 name the general-purpose registers).
+
+const SYS_WRITE = 1
+const SYS_EXIT = 60
+const STDOUT = 1
+
+const W = 80
+const H = 30
+const MAX_ITER = 32
+
+struct Complex
+{
+    re: qword
+    im: qword
+}
+
+data palette = " .:-=+*#%@"
+
+proc main
+{
+    stack z[Complex.size]
+    stack row[W + 1]
+
+    r11 = 0             // py
+
+row_loop:
+    // ci = py * 0.08 - 1.2
+    xmm3 = r11
+    xmm7 = 0.08
+    xmm3 *= xmm7
+    xmm7 = 1.2
+    xmm3 -= xmm7
+
+    r12 = 0             // px
+
+col_loop:
+    // cr = px * 0.04375 - 2.5
+    xmm2 = r12
+    xmm7 = 0.04375
+    xmm2 *= xmm7
+    xmm7 = 2.5
+    xmm2 -= xmm7
+
+    // z = 0 + 0i
+    xmm0 = 0.0
+    r5 = z
+    r5 += Complex.re
+    ^r5 = xmm0          // z.re = 0
+    r5 = z
+    r5 += Complex.im
+    ^r5 = xmm0          // z.im = 0
+
+    r2 = 0              // iteration count
+
+iter_loop:
+    // load z into xmm0 (zr) and xmm1 (zi)
+    r5 = z
+    r5 += Complex.re
+    xmm0 = ^r5
+    r5 = z
+    r5 += Complex.im
+    xmm1 = ^r5
+
+    // zr2 = zr*zr, zi2 = zi*zi
+    xmm4 = xmm0
+    xmm4 *= xmm0
+    xmm5 = xmm1
+    xmm5 *= xmm1
+
+    // escape when zr2 + zi2 > 4.0
+    xmm6 = xmm4
+    xmm6 += xmm5
+    if xmm6 > 4.0
+        goto plot
+
+    // new_zi = 2*zr*zi + ci   (uses the old zr and zi)
+    xmm6 = xmm0
+    xmm6 *= xmm1
+    xmm6 += xmm6
+    xmm6 += xmm3
+    xmm7 = xmm6         // stash new_zi
+
+    // new_zr = zr2 - zi2 + cr
+    xmm4 -= xmm5
+    xmm4 += xmm2
+
+    // store the new z back into the struct
+    r5 = z
+    r5 += Complex.re
+    ^r5 = xmm4          // z.re = new_zr
+    r5 = z
+    r5 += Complex.im
+    ^r5 = xmm7          // z.im = new_zi
+
+    r2 += 1
+    if r2 < MAX_ITER
+        goto iter_loop
+
+plot:
+    // index = iter * 9 / MAX_ITER, then char = palette[index]
+    r1 = r2
+    r1 *= 9
+    r3 = MAX_ITER
+    r1 /= r3
+
+    r5 = palette
+    r5 += r1
+    r4 = ^byte r5
+
+    r6 = row
+    r6 += r12
+    ^byte r6 = r4
+
+    r12 += 1
+    if r12 < W
+        goto col_loop
+
+    // terminate the row with a newline and write it
+    r6 = row
+    r6 += W
+    r1 = 10
+    ^byte r6 = r1
+
+    r1 = SYS_WRITE
+    r6 = STDOUT
+    r5 = row
+    r4 = W
+    r4 += 1
+    syscall
+
+    r11 += 1
+    if r11 < H
+        goto row_loop
+
+    r1 = SYS_EXIT
+    r6 = 0
+    syscall
+}

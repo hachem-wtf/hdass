@@ -426,8 +426,109 @@ static void test_generate_enum_struct(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_floats(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nxmm0 = 3.5\nxmm0 *= xmm1\nrax = 4\nxmm2 = rax\nrbx = xmm0\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "__float0: dq 3.5") != NULL);
+	check(context, strstr(buffer, "movsd xmm0, [__float0]") != NULL);
+	check(context, strstr(buffer, "mulsd xmm0, xmm1") != NULL);   // float arithmetic
+	check(context, strstr(buffer, "cvtsi2sd xmm2, rax") != NULL); // int -> float
+	check(context, strstr(buffer, "cvttsd2si rbx, xmm0") != NULL); // float -> int
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_float_compare(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nif xmm0 > 4.0\ngoto done\ndone:\nsyscall\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "ucomisd xmm0, [__float0]") != NULL);
+	check(context, strstr(buffer, "jbe .if_end") != NULL); // '>' skips when <=
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_add_zero_peephole(struct TestContext* context)
+{
+	// `+= 0` / `-= 0` (e.g. a struct field at offset 0) is dropped; `*= 0` is not
+	struct Lexer lexer = create_lexer("proc main\n{\nrax += 0\nrbx -= 0\nrcx *= 0\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "add rax, 0") == NULL);
+	check(context, strstr(buffer, "sub rbx, 0") == NULL);
+	check(context, strstr(buffer, "imul rcx, 0") != NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_float_memory(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\n^rsi = xmm0\nxmm1 = ^rsi\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "movsd [rsi], xmm0") != NULL); // float store
+	check(context, strstr(buffer, "movsd xmm1, [rsi]") != NULL); // float load
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
+	test_generate_floats(context);
+	test_generate_float_compare(context);
+	test_generate_float_memory(context);
+	test_generate_add_zero_peephole(context);
 	test_generate_enum_struct(context);
 	test_generate_load(context);
 	test_generate_logical_registers(context);

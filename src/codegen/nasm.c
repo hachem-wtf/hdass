@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -64,13 +65,43 @@ static const char* assign_mnemonic(enum TokenType op)
 	}
 }
 
+struct FloatTable
+{
+	struct Token* items;
+	size_t count;
+	size_t capacity;
+};
+
 struct Emitter
 {
 	struct Program* program;
 	struct ProcDecl* proc;
+	struct FloatTable* floats;
 	FILE* out;
 	uint32_t label_id;
 };
+
+static bool is_float_register(struct Token token)
+{
+	if (token.length < 4 || memcmp(token.start, "xmm", 3) != 0)
+		return false;
+
+	for (size_t i = 3; i < token.length; i += 1)
+		if (token.start[i] < '0' || token.start[i] > '9')
+			return false;
+
+	return true;
+}
+
+static size_t float_index(struct FloatTable* floats, struct Token literal)
+{
+	for (size_t i = 0; i < floats->count; i += 1)
+		if (floats->items[i].length == literal.length
+			&& memcmp(floats->items[i].start, literal.start, literal.length) == 0)
+			return i;
+
+	return floats->count;
+}
 
 static const char* sized_register(struct Token reg, enum StoreSize size);
 
@@ -170,8 +201,11 @@ static uint64_t token_to_u64(struct Token token)
 	return value;
 }
 
-static bool buffer_offset(struct ProcDecl* proc, struct Token name, uint64_t* out_offset)
+static bool fold_const(struct Program* program, struct Expr* expr, uint64_t* out);
+
+static bool buffer_offset(struct Emitter* emitter, struct Token name, uint64_t* out_offset)
 {
+	struct ProcDecl* proc = emitter->proc;
 	uint64_t cumulative = 0;
 	for (size_t i = 0; i < proc->body_count; i += 1)
 	{
@@ -179,7 +213,9 @@ static bool buffer_offset(struct ProcDecl* proc, struct Token name, uint64_t* ou
 		if (statement->kind != STATEMENT_STACK)
 			continue;
 
-		cumulative += token_to_u64(statement->stack.size);
+		uint64_t size = 0;
+		fold_const(emitter->program, statement->stack.size, &size);
+		cumulative += size;
 		if (statement->stack.name.length == name.length
 			&& memcmp(statement->stack.name.start, name.start, name.length) == 0)
 		{
@@ -194,7 +230,7 @@ static bool buffer_offset(struct ProcDecl* proc, struct Token name, uint64_t* ou
 static bool is_buffer_name(struct Emitter* emitter, struct Token token)
 {
 	uint64_t offset;
-	return emitter->proc != NULL && buffer_offset(emitter->proc, token, &offset);
+	return emitter->proc != NULL && buffer_offset(emitter, token, &offset);
 }
 
 static enum StoreSize size_from_int(struct Token token)
@@ -247,6 +283,117 @@ static uint64_t store_size_bytes(enum StoreSize size)
 		case STORE_SIZE_DWORD: return 4;
 		default:               return 8;
 	}
+}
+
+static uint64_t char_literal_value(struct Token token)
+{
+	if (token.length >= 4 && token.start[1] == '\\')
+	{
+		switch (token.start[2])
+		{
+			case 'n':  return 10;
+			case 't':  return 9;
+			case 'r':  return 13;
+			case '0':  return 0;
+			case '\\': return 92;
+			case '\'': return 39;
+			default:   return (unsigned char)token.start[2];
+		}
+	}
+
+	return (unsigned char)token.start[1];
+}
+
+static bool fold_member(struct Program* program, struct Expr* object, struct Token member, uint64_t* out)
+{
+	if (object->kind != EXPR_PRIMARY)
+		return false;
+	struct Token name = object->primary.token;
+
+	struct EnumDecl* enumeration = find_enum(program, name);
+	if (enumeration != NULL)
+	{
+		for (size_t i = 0; i < enumeration->member_count; i += 1)
+			if (tokens_equal(enumeration->members[i], member))
+			{
+				*out = i;
+				return true;
+			}
+		return false;
+	}
+
+	struct StructDecl* layout = find_struct(program, name);
+	if (layout != NULL)
+	{
+		uint64_t offset = 0;
+		for (size_t i = 0; i < layout->field_count; i += 1)
+		{
+			if (tokens_equal(layout->fields[i].name, member))
+			{
+				*out = offset;
+				return true;
+			}
+			offset += store_size_bytes(layout->fields[i].size);
+		}
+		if (token_matches(member, "size"))
+		{
+			*out = offset;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// evaluates a compile-time constant expression: integer/char literals, other
+// constants, enum values and struct offsets, and + - * / over them
+static bool fold_const(struct Program* program, struct Expr* expr, uint64_t* out)
+{
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+		{
+			struct Token token = expr->primary.token;
+			if (token.type == TOKEN_INTEGER)
+			{
+				*out = token_to_u64(token);
+				return true;
+			}
+			if (token.type == TOKEN_CHAR)
+			{
+				*out = char_literal_value(token);
+				return true;
+			}
+			if (token.type == TOKEN_IDENTIFIER)
+				for (size_t i = 0; i < program->const_count; i += 1)
+					if (tokens_equal(program->consts[i].name, token))
+						return fold_const(program, program->consts[i].value, out);
+			return false;
+		}
+		case EXPR_BINARY:
+		{
+			uint64_t left;
+			uint64_t right;
+			if (!fold_const(program, expr->binary.left, &left)
+				|| !fold_const(program, expr->binary.right, &right))
+				return false;
+
+			switch (expr->binary.op.type)
+			{
+				case TOKEN_PLUS:  *out = left + right; return true;
+				case TOKEN_MINUS: *out = left - right; return true;
+				case TOKEN_STAR:  *out = left * right; return true;
+				case TOKEN_SLASH: *out = right != 0 ? left / right : 0; return true;
+				default:          return false;
+			}
+		}
+		case EXPR_MEMBER:
+			return fold_member(program, expr->member.object, expr->member.member, out);
+		case EXPR_DEREF:
+			return false;
+	}
+
+	return false;
 }
 
 // an enum member folds to its 0-based index; a struct member folds to its byte
@@ -442,7 +589,7 @@ static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr
 	if (expr->kind == EXPR_PRIMARY && is_buffer_name(emitter, expr->primary.token))
 	{
 		uint64_t offset;
-		buffer_offset(emitter->proc, expr->primary.token, &offset);
+		buffer_offset(emitter, expr->primary.token, &offset);
 		fprintf(emitter->out, "\tlea %s, [rbp - %llu]\n", dst, (unsigned long long)offset);
 		return;
 	}
@@ -517,8 +664,108 @@ static const char* sized_register(struct Token reg, enum StoreSize size)
 	return NULL;
 }
 
+static const char* float_mnemonic(enum TokenType op)
+{
+	switch (op)
+	{
+		case TOKEN_EQUAL:       return "movsd";
+		case TOKEN_PLUS_EQUAL:  return "addsd";
+		case TOKEN_MINUS_EQUAL: return "subsd";
+		case TOKEN_STAR_EQUAL:  return "mulsd";
+		case TOKEN_SLASH_EQUAL: return "divsd";
+		default:                return NULL;
+	}
+}
+
+static bool value_is_float(struct Emitter* emitter, struct Expr* expr)
+{
+	if (expr->kind != EXPR_PRIMARY)
+		return false;
+	if (expr->primary.token.type == TOKEN_FLOAT)
+		return true;
+
+	return is_float_register(resolve_register(emitter, expr->primary.token));
+}
+
+// floating point: xmm moves and arithmetic, conversions to/from general-purpose
+// registers, and float literals loaded from their .data slot
+static bool emit_float_assign(struct Emitter* emitter, struct AssignStatement* assign,
+	struct Token target, bool target_float)
+{
+	struct Expr* value = assign->value;
+
+	// float store: ^ptr = xmm  ->  movsd [ptr], xmm
+	if (assign->target_deref)
+	{
+		if (assign->op.type != TOKEN_EQUAL || value->kind != EXPR_PRIMARY)
+			return false;
+		struct Token source = resolve_register(emitter, value->primary.token);
+		if (!is_float_register(source))
+			return false;
+		fprintf(emitter->out, "\tmovsd [%.*s], %.*s\n",
+			(int)target.length, target.start, (int)source.length, source.start);
+		return true;
+	}
+
+	// float load: xmm = ^ptr  ->  movsd xmm, [ptr]
+	if (value->kind == EXPR_DEREF)
+	{
+		if (!target_float || assign->op.type != TOKEN_EQUAL)
+			return false;
+		fprintf(emitter->out, "\tmovsd %.*s, [", (int)target.length, target.start);
+		emit_operand(emitter, value->deref.address);
+		fprintf(emitter->out, "]\n");
+		return true;
+	}
+
+	if (value->kind == EXPR_PRIMARY && value->primary.token.type == TOKEN_FLOAT)
+	{
+		if (!target_float || assign->op.type != TOKEN_EQUAL)
+			return false;
+		size_t index = float_index(emitter->floats, value->primary.token);
+		fprintf(emitter->out, "\tmovsd %.*s, [__float%zu]\n",
+			(int)target.length, target.start, index);
+		return true;
+	}
+
+	if (value->kind != EXPR_PRIMARY)
+		return false;
+
+	struct Token source = resolve_register(emitter, value->primary.token);
+	bool source_float = is_float_register(source);
+
+	if (target_float && source_float)
+	{
+		const char* mnemonic = float_mnemonic(assign->op.type);
+		if (mnemonic == NULL)
+			return false;
+		fprintf(emitter->out, "\t%s %.*s, %.*s\n", mnemonic,
+			(int)target.length, target.start, (int)source.length, source.start);
+		return true;
+	}
+
+	if (assign->op.type != TOKEN_EQUAL)
+		return false;
+
+	if (target_float)
+		fprintf(emitter->out, "\tcvtsi2sd %.*s, %.*s\n",
+			(int)target.length, target.start, (int)source.length, source.start);
+	else
+		fprintf(emitter->out, "\tcvttsd2si %.*s, %.*s\n",
+			(int)target.length, target.start, (int)source.length, source.start);
+	return true;
+}
+
 static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 {
+	struct Token float_target = resolve_register(emitter, assign->target);
+	if (is_float_register(float_target) || value_is_float(emitter, assign->value))
+	{
+		if (!emit_float_assign(emitter, assign, float_target, is_float_register(float_target)))
+			fprintf(emitter->out, "\t; TODO: unsupported float assignment\n");
+		return;
+	}
+
 	if (assign->op.type == TOKEN_SLASH_EQUAL)
 	{
 		emit_divide(emitter, assign);
@@ -551,6 +798,13 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
 		return;
 	}
+
+	// adding or subtracting a constant zero (e.g. a struct field at offset 0) is a no-op
+	uint64_t folded;
+	if (!assign->target_deref
+		&& (assign->op.type == TOKEN_PLUS_EQUAL || assign->op.type == TOKEN_MINUS_EQUAL)
+		&& fold_const(emitter->program, assign->value, &folded) && folded == 0)
+		return;
 
 	if (assign->target_deref)
 	{
@@ -632,8 +886,63 @@ static void emit_call(struct Emitter* emitter, struct CallStatement* call)
 
 static void emit_statement(struct Emitter* emitter, struct Statement* statement);
 
+// ucomisd sets the flags like an unsigned compare, so float branches use the
+// unsigned jump family (ja/jae/jb/jbe) rather than the signed one
+static const char* float_jump_if_false(enum TokenType comparison)
+{
+	switch (comparison)
+	{
+		case TOKEN_EQUAL_EQUAL:   return "jne";
+		case TOKEN_BANG_EQUAL:    return "je";
+		case TOKEN_LESS:          return "jae";
+		case TOKEN_LESS_EQUAL:    return "ja";
+		case TOKEN_GREATER:       return "jbe";
+		case TOKEN_GREATER_EQUAL: return "jb";
+		default:                  return NULL;
+	}
+}
+
+static void emit_float_operand(struct Emitter* emitter, struct Expr* expr)
+{
+	if (expr->kind == EXPR_PRIMARY && expr->primary.token.type == TOKEN_FLOAT)
+	{
+		fprintf(emitter->out, "[__float%zu]", float_index(emitter->floats, expr->primary.token));
+		return;
+	}
+
+	struct Token token = resolve_register(emitter, expr->primary.token);
+	fprintf(emitter->out, "%.*s", (int)token.length, token.start);
+}
+
 static void emit_if(struct Emitter* emitter, struct IfStatement* branch)
 {
+	bool is_float = value_is_float(emitter, branch->left) || value_is_float(emitter, branch->right);
+
+	uint32_t id = emitter->label_id;
+	emitter->label_id += 1;
+
+	if (is_float)
+	{
+		const char* jump = float_jump_if_false(branch->comparison.type);
+		bool left_reg = branch->left->kind == EXPR_PRIMARY
+			&& is_float_register(resolve_register(emitter, branch->left->primary.token));
+		if (jump == NULL || !left_reg || !value_is_float(emitter, branch->right))
+		{
+			fprintf(emitter->out, "\t; TODO: unsupported if\n");
+			return;
+		}
+
+		fprintf(emitter->out, "\tucomisd ");
+		emit_float_operand(emitter, branch->left);
+		fprintf(emitter->out, ", ");
+		emit_float_operand(emitter, branch->right);
+		fprintf(emitter->out, "\n\t%s .if_end_%u\n", jump, id);
+
+		emit_statement(emitter, branch->body);
+		fprintf(emitter->out, ".if_end_%u:\n", id);
+		return;
+	}
+
 	const char* jump = jump_if_false(branch->comparison.type);
 	if (jump == NULL
 		|| branch->left->kind == EXPR_BINARY || branch->left->kind == EXPR_DEREF
@@ -642,9 +951,6 @@ static void emit_if(struct Emitter* emitter, struct IfStatement* branch)
 		fprintf(emitter->out, "\t; TODO: unsupported if\n");
 		return;
 	}
-
-	uint32_t id = emitter->label_id;
-	emitter->label_id += 1;
 
 	fprintf(emitter->out, "\tcmp ");
 	emit_operand(emitter, branch->left);
@@ -689,14 +995,18 @@ static void emit_statement(struct Emitter* emitter, struct Statement* statement)
 	}
 }
 
-static uint64_t proc_stack_size(struct ProcDecl* proc)
+static uint64_t proc_stack_size(struct Program* program, struct ProcDecl* proc)
 {
 	uint64_t total = 0;
 	for (size_t i = 0; i < proc->body_count; i += 1)
 	{
 		struct Statement* statement = &proc->body[i];
 		if (statement->kind == STATEMENT_STACK)
-			total += token_to_u64(statement->stack.size);
+		{
+			uint64_t size = 0;
+			fold_const(program, statement->stack.size, &size);
+			total += size;
+		}
 	}
 
 	if (total % 16 != 0)
@@ -705,11 +1015,86 @@ static uint64_t proc_stack_size(struct ProcDecl* proc)
 	return total;
 }
 
-static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
+static void collect_float(struct FloatTable* floats, struct Token token)
+{
+	if (token.type != TOKEN_FLOAT || float_index(floats, token) != floats->count)
+		return;
+
+	if (floats->count == floats->capacity)
+	{
+		size_t capacity = floats->capacity < 8 ? 8 : floats->capacity * 2;
+		floats->items = realloc(floats->items, capacity * sizeof(struct Token));
+		floats->capacity = capacity;
+	}
+
+	floats->items[floats->count] = token;
+	floats->count += 1;
+}
+
+static void collect_floats_expr(struct FloatTable* floats, struct Expr* expr)
+{
+	switch (expr->kind)
+	{
+		case EXPR_PRIMARY:
+			collect_float(floats, expr->primary.token);
+			break;
+		case EXPR_BINARY:
+			collect_floats_expr(floats, expr->binary.left);
+			collect_floats_expr(floats, expr->binary.right);
+			break;
+		case EXPR_MEMBER:
+			collect_floats_expr(floats, expr->member.object);
+			break;
+		case EXPR_DEREF:
+			collect_floats_expr(floats, expr->deref.address);
+			break;
+	}
+}
+
+static void collect_floats_statement(struct FloatTable* floats, struct Statement* statement)
+{
+	switch (statement->kind)
+	{
+		case STATEMENT_ASSIGN:
+			collect_floats_expr(floats, statement->assign.value);
+			break;
+		case STATEMENT_IF:
+			collect_floats_expr(floats, statement->branch.left);
+			collect_floats_expr(floats, statement->branch.right);
+			collect_floats_statement(floats, statement->branch.body);
+			break;
+		case STATEMENT_CALL:
+			for (size_t i = 0; i < statement->call.arg_count; i += 1)
+				collect_floats_expr(floats, statement->call.args[i]);
+			break;
+		default:
+			break;
+	}
+}
+
+static struct FloatTable collect_floats(struct Program* program)
+{
+	struct FloatTable floats = { NULL, 0, 0 };
+	for (size_t i = 0; i < program->proc_count; i += 1)
+		for (size_t j = 0; j < program->procs[i].body_count; j += 1)
+			collect_floats_statement(&floats, &program->procs[i].body[j]);
+
+	return floats;
+}
+
+static void emit_float_data(struct FloatTable* floats, FILE* out)
+{
+	for (size_t i = 0; i < floats->count; i += 1)
+		fprintf(out, "__float%zu: dq %.*s\n", i,
+			(int)floats->items[i].length, floats->items[i].start);
+}
+
+static void emit_proc(struct Program* program, struct FloatTable* floats, struct ProcDecl* proc, FILE* out)
 {
 	struct Emitter emitter;
 	emitter.program = program;
 	emitter.proc = proc;
+	emitter.floats = floats;
 	emitter.out = out;
 	emitter.label_id = 0;
 
@@ -720,7 +1105,7 @@ static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
 
 	fprintf(out, "%.*s:\n", (int)proc->name.length, proc->name.start);
 
-	uint64_t stack_size = proc_stack_size(proc);
+	uint64_t stack_size = proc_stack_size(program, proc);
 	if (stack_size > 0)
 	{
 		fprintf(out, "\tpush rbp\n");
@@ -741,6 +1126,8 @@ static void emit_proc(struct Program* program, struct ProcDecl* proc, FILE* out)
 
 void generate_nasm(struct Program* program, FILE* out)
 {
+	struct FloatTable floats = collect_floats(program);
+
 	fprintf(out, "bits %u\n\n", program->config.bits);
 
 	if (program->const_count > 0)
@@ -750,6 +1137,7 @@ void generate_nasm(struct Program* program, FILE* out)
 	}
 
 	emit_data(program, out);
+	emit_float_data(&floats, out);
 	fprintf(out, "\n");
 
 	fprintf(out, "section .text\n");
@@ -759,6 +1147,8 @@ void generate_nasm(struct Program* program, FILE* out)
 	for (size_t i = 0; i < program->proc_count; i += 1)
 	{
 		fprintf(out, "\n");
-		emit_proc(program, &program->procs[i], out);
+		emit_proc(program, &floats, &program->procs[i], out);
 	}
+
+	free(floats.items);
 }

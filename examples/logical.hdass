@@ -8,12 +8,12 @@ const SYS_EXIT = 60
 
 proc main
 {
-    r1 = 4        // rax
-    r2 = 3        // rbx
-    r1 += r2      // 7
-    r1 *= r2      // 21
+    r1 = 4   // rax
+    r2 = 3   // rbx
+    r1 += r2 // 7
+    r1 *= r2 // 21
 
-    r6 = r1       // rdi = 21 (the exit status)
+    r6 = r1  // rdi = 21 (the exit status)
     r1 = SYS_EXIT
     syscall
 }
