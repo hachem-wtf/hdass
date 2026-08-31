@@ -9,7 +9,7 @@ static bool names_equal(struct Token a, struct Token b)
 	return a.length == b.length && memcmp(a.start, b.start, a.length) == 0;
 }
 
-static bool check_duplicate_names(struct Program* program)
+static bool check_duplicate_names(struct Source source, struct Program* program)
 {
 	size_t count = program->const_count + program->data_count + program->proc_count;
 	if (count == 0)
@@ -38,8 +38,10 @@ static bool check_duplicate_names(struct Program* program)
 		for (size_t j = 0; j < i; j += 1)
 			if (names_equal(names[i], names[j]))
 			{
-				fprintf(stderr, "error: line %u: '%.*s' is already defined\n",
-					names[i].line, (int)names[i].length, names[i].start);
+				char message[128];
+				snprintf(message, sizeof(message), "'%.*s' is already defined",
+					(int)names[i].length, names[i].start);
+				report_error(source, names[i], message);
 				ok = false;
 			}
 
@@ -47,7 +49,7 @@ static bool check_duplicate_names(struct Program* program)
 	return ok;
 }
 
-static bool check_entry_point(struct Program* program)
+static bool check_entry_point(struct Source source, struct Program* program)
 {
 	if (!program->config.has_entry)
 		return true;
@@ -57,18 +59,20 @@ static bool check_entry_point(struct Program* program)
 		if (names_equal(program->procs[i].name, entry))
 			return true;
 
-	fprintf(stderr, "error: line %u: entry point '%.*s' is not defined\n",
-		entry.line, (int)entry.length, entry.start);
+	char message[128];
+	snprintf(message, sizeof(message), "entry point '%.*s' is not defined",
+		(int)entry.length, entry.start);
+	report_error(source, entry, message);
 	return false;
 }
 
-bool analyze_program(struct Program* program)
+bool analyze_program(struct Source source, struct Program* program)
 {
 	bool ok = true;
 
-	if (!check_duplicate_names(program))
+	if (!check_duplicate_names(source, program))
 		ok = false;
-	if (!check_entry_point(program))
+	if (!check_entry_point(source, program))
 		ok = false;
 
 	return ok;

@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "diag/diag.h"
 #include "parser/parser.h"
 
 struct Parser
 {
 	struct Lexer* lexer;
+	struct Source source;
 	struct Token current;
 	struct Token previous;
 	bool had_error;
@@ -25,7 +27,7 @@ static bool check(struct Parser* parser, enum TokenType type)
 
 static void error_at(struct Parser* parser, struct Token token, const char* message)
 {
-	fprintf(stderr, "error: line %u: %s\n", token.line, message);
+	report_error(parser->source, token, message);
 	parser->had_error = true;
 }
 
@@ -509,6 +511,8 @@ bool parse_program(struct Lexer* lexer, struct Program* out)
 {
 	struct Parser parser;
 	parser.lexer = lexer;
+	parser.source.name = lexer->name;
+	parser.source.text = lexer->source;
 	parser.had_error = false;
 	advance_parser(&parser);
 

@@ -1,20 +1,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "diag/diag.h"
 #include "io/file.h"
+
+static void report_file_error(const char* verb, const char* path)
+{
+	char message[512];
+	snprintf(message, sizeof(message), "%s '%s'", verb, path);
+	report_error_message(message);
+}
 
 bool read_file(const char* path, struct File* out)
 {
 	FILE* stream = fopen(path, "rb");
 	if (stream == NULL)
 	{
-		fprintf(stderr, "error: could not open '%s'\n", path);
+		report_file_error("could not open", path);
 		return false;
 	}
 
 	if (fseek(stream, 0, SEEK_END) != 0)
 	{
-		fprintf(stderr, "error: could not read '%s'\n", path);
+		report_file_error("could not read", path);
 		fclose(stream);
 		return false;
 	}
@@ -22,7 +30,7 @@ bool read_file(const char* path, struct File* out)
 	long length = ftell(stream);
 	if (length < 0)
 	{
-		fprintf(stderr, "error: could not read '%s'\n", path);
+		report_file_error("could not read", path);
 		fclose(stream);
 		return false;
 	}
@@ -32,14 +40,14 @@ bool read_file(const char* path, struct File* out)
 	char* data = malloc(size + 1);
 	if (data == NULL)
 	{
-		fprintf(stderr, "error: out of memory reading '%s'\n", path);
+		report_file_error("out of memory reading", path);
 		fclose(stream);
 		return false;
 	}
 
 	if (fread(data, 1, size, stream) != size)
 	{
-		fprintf(stderr, "error: could not read '%s'\n", path);
+		report_file_error("could not read", path);
 		free(data);
 		fclose(stream);
 		return false;

@@ -64,6 +64,7 @@ struct Token
 
 struct Lexer
 {
+	const char* name;
 	const char* source;
 	const char* current;
 	uint32_t line;

@@ -118,6 +118,7 @@ static struct Token make_token(struct Lexer* lexer, enum TokenType type, const c
 struct Lexer create_lexer(const char* source)
 {
 	struct Lexer lexer;
+	lexer.name = NULL;
 	lexer.source = source;
 	lexer.current = source;
 	lexer.line = 1;

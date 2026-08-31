@@ -14,7 +14,8 @@ static bool analyze_source(const char* source)
 		return false;
 	}
 
-	bool ok = analyze_program(&program);
+	struct Source diagnostics = { "<test>", source };
+	bool ok = analyze_program(diagnostics, &program);
 	free_program(&program);
 	return ok;
 }

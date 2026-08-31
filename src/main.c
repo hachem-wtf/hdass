@@ -2,6 +2,7 @@
 
 #include "io/file.h"
 #include "cli/args.h"
+#include "diag/diag.h"
 #include "sema/sema.h"
 #include "lexer/lexer.h"
 #include "codegen/nasm.h"
@@ -19,7 +20,7 @@ int main(int argc, char** argv)
 
 	if (args.target != ASSEMBLER_NASM)
 	{
-		fprintf(stderr, "error: only the nasm target is supported\n");
+		report_error_message("only the nasm target is supported");
 		return 1;
 	}
 
@@ -28,6 +29,7 @@ int main(int argc, char** argv)
 		return 1;
 
 	struct Lexer lexer = create_lexer(source.data);
+	lexer.name = args.input_path;
 
 	struct Program program;
 	if (!parse_program(&lexer, &program))
@@ -37,7 +39,8 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (!analyze_program(&program))
+	struct Source diagnostics = { args.input_path, source.data };
+	if (!analyze_program(diagnostics, &program))
 	{
 		free_program(&program);
 		free_file(&source);
@@ -50,7 +53,9 @@ int main(int argc, char** argv)
 		out = fopen(args.output_path, "w");
 		if (out == NULL)
 		{
-			fprintf(stderr, "error: could not open '%s' for writing\n", args.output_path);
+			char message[256];
+			snprintf(message, sizeof(message), "could not open '%s' for writing", args.output_path);
+			report_error_message(message);
 			free_program(&program);
 			free_file(&source);
 			return 1;
