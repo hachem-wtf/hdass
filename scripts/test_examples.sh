@@ -81,6 +81,7 @@ check loop_sum    "sums 1..5 with a countdown loop"       examples/loop_sum.hdas
 check branch      "selects the larger of two values"      examples/branch.hdass      8  ""
 check call        "passes an argument through a proc"     examples/call.hdass        21 ""
 check logical     "logical register names (r1..r14)"      examples/logical.hdass     21 ""
+check mul_div     "multiply and non-rax division"         examples/mul_div.hdass     8  ""
 check fibonacci   "prints the first ten Fibonacci numbers" examples/fibonacci.hdass  0  "0
 1
 1

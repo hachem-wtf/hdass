@@ -78,8 +78,9 @@ Written by their architecture names — `rax`–`rdi`, `rbp`, `rsp`, `r8`–`r15
 
 ```hdass
 rax = SYS_WRITE     // mov
-rcx -= 1            // += -= *= /=  ->  add sub imul idiv  (/= targets rax)
-rdx = buffer + 31   // address math with + and -
+rcx -= 1            // += -= *= /=  ->  add sub imul idiv
+rax = rbx * rcx     // + - * / in a value; / and /= use rax:rdx (see Gotchas)
+rdx = buffer + 31   // address math
 loop:               // label
 goto loop
 if rcx != 0         // == != < <= > >= ; runs the next statement only
@@ -113,7 +114,7 @@ A leading size keyword sets the width explicitly. It down-converts a full regist
 
 ## Expressions
 
-Assignment values and `if` operands: registers, integers, chars (`'0'`), constants, data names, member access (`data.len`), and `+`/`-`. Multiply and divide come from the `*=` and `/=` compound assignments, not from `*`/`/` inside a value.
+Assignment values and `if` operands: registers, integers, chars (`'0'`), constants, data names, member access (`data.len`), and `+` `-` `*` `/`. Operators are left-associative and each right-hand operand must be a single term, so `a * b + c` works but `a + b * c` (a nested right operand) doesn't yet.
 
 ## Extensions
 
@@ -160,4 +161,5 @@ The [README](../README.md) has a Docker setup with these tools.
 
 - **Clobbering is yours.** `syscall` trashes `rcx`/`r11`; a callee trashes what it touches. Nothing is saved for you — `examples/fibonacci.hdass` keeps its counter in `r15` for this reason.
 - **Widths must match.** `rax = r1.8` becomes `mov rax, al`, which won't assemble.
+- **Division uses `rax:rdx`.** `/` and `/=` go through `idiv`, so they clobber `rax` and `rdx` regardless of the target, and the divisor can't be `rax`, `rdx`, or an immediate — put it in another register first.
 - **The entry procedure has no `ret`** — end it with an exit syscall.

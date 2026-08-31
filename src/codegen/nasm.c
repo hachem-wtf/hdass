@@ -209,25 +209,39 @@ static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 	return false;
 }
 
+// idiv divides rdx:rax by its operand and leaves the quotient in rax, so a
+// division computes `dst = dst / divisor` through rax (clobbering rax and rdx).
+static void emit_division(struct Emitter* emitter, const char* dst, struct Expr* divisor)
+{
+	bool dst_is_rax = strcmp(dst, "rax") == 0;
+
+	if (!dst_is_rax)
+		fprintf(emitter->out, "\tmov rax, %s\n", dst);
+	fprintf(emitter->out, "\tcqo\n");
+	fprintf(emitter->out, "\tidiv ");
+	emit_operand(emitter, divisor);
+	fprintf(emitter->out, "\n");
+	if (!dst_is_rax)
+		fprintf(emitter->out, "\tmov %s, rax\n", dst);
+}
+
 static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
 {
-	struct Token target = resolve_register(emitter, assign->target);
-	bool target_is_rax = target.length == 3 && memcmp(target.start, "rax", 3) == 0;
-	if (assign->target_deref || !target_is_rax)
+	if (assign->target_deref)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported division\n");
 		return;
 	}
 
-	fprintf(emitter->out, "\tcqo\n");
-	fprintf(emitter->out, "\tidiv ");
-	emit_operand(emitter, assign->value);
-	fprintf(emitter->out, "\n");
+	struct Token target = resolve_register(emitter, assign->target);
+	char dst[32];
+	snprintf(dst, sizeof(dst), "%.*s", (int)target.length, target.start);
+	emit_division(emitter, dst, assign->value);
 }
 
 // an expression can be evaluated into a register when it is a single term
-// (primary or member), or a left-associative chain of '+'/'-' whose right
-// operands are plain operands (never a buffer or a nested binary)
+// (primary or member), or a left-associative chain of binary operators whose
+// right operands are plain operands (never a buffer or a nested binary)
 static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 {
 	switch (expr->kind)
@@ -236,13 +250,10 @@ static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 		case EXPR_MEMBER:
 			return true;
 		case EXPR_BINARY:
-			if (expr->binary.op.type != TOKEN_PLUS && 
-				expr->binary.op.type != TOKEN_MINUS)
-				return false;
-			if (expr->binary.right->kind != EXPR_PRIMARY && 
+			if (expr->binary.right->kind != EXPR_PRIMARY &&
 				expr->binary.right->kind != EXPR_MEMBER)
 				return false;
-			if (expr->binary.right->kind == EXPR_PRIMARY && 
+			if (expr->binary.right->kind == EXPR_PRIMARY &&
 				is_buffer_name(emitter, expr->binary.right->primary.token))
 				return false;
 			return expr_supported(emitter, expr->binary.left);
@@ -257,7 +268,15 @@ static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr
 	{
 		emit_expr_into(emitter, dst, expr->binary.left);
 
-		const char* mnemonic = expr->binary.op.type == TOKEN_PLUS ? "add" : "sub";
+		if (expr->binary.op.type == TOKEN_SLASH)
+		{
+			emit_division(emitter, dst, expr->binary.right);
+			return;
+		}
+
+		const char* mnemonic =
+			expr->binary.op.type == TOKEN_PLUS ? "add" :
+			expr->binary.op.type == TOKEN_MINUS ? "sub" : "imul";
 		fprintf(emitter->out, "\t%s %s, ", mnemonic, dst);
 		emit_operand(emitter, expr->binary.right);
 		fprintf(emitter->out, "\n");

@@ -151,6 +151,57 @@ static void test_generate_divide(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_multiply(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nrax = rbx * rcx\nrbx = rcx * 3 + rdx\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, rbx") != NULL);
+	check(context, strstr(buffer, "imul rax, rcx") != NULL);
+	check(context, strstr(buffer, "imul rbx, 3") != NULL);
+	check(context, strstr(buffer, "add rbx, rdx") != NULL);
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_divide_nonrax(struct TestContext* context)
+{
+	// division into a register other than rax routes through rax:rdx
+	struct Lexer lexer = create_lexer("proc main\n{\nrbx /= rcx\nrsi = rdi / rcx\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, rbx") != NULL);
+	check(context, strstr(buffer, "idiv rcx") != NULL);
+	check(context, strstr(buffer, "mov rbx, rax") != NULL);
+	check(context, strstr(buffer, "mov rsi, rax") != NULL);
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
 static void test_generate_stack_frame(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("proc work\n{\nstack buffer[32]\nsyscall\n}\n");
@@ -333,6 +384,8 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_call(context);
 	test_generate_param_substitution(context);
 	test_generate_divide(context);
+	test_generate_multiply(context);
+	test_generate_divide_nonrax(context);
 	test_generate_stack_frame(context);
 	test_generate_address_expr(context);
 	test_generate_sized_store(context);
