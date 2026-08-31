@@ -76,6 +76,12 @@ static void test_assign_to_const(struct TestContext* context)
 	check(context, !analyze_source("const K = 5\nproc main\n{\nK = 1\n}\n"));
 }
 
+static void test_deref_needs_register(struct TestContext* context)
+{
+	check(context, !analyze_source("proc main\n{\nrax = ^MISSING\n}\n"));
+	check(context, analyze_source("proc main\n{\nrax = ^rsi\n}\n"));
+}
+
 static void test_references_resolve(struct TestContext* context)
 {
 	// registers, params, consts, data (+ .len), stack buffers, labels, calls
@@ -108,5 +114,6 @@ void run_sema_tests(struct TestContext* context)
 	test_undefined_call(context);
 	test_call_arg_count(context);
 	test_assign_to_const(context);
+	test_deref_needs_register(context);
 	test_references_resolve(context);
 }

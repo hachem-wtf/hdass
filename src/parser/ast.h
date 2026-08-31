@@ -24,11 +24,21 @@ struct Param
 	struct Token reg;
 };
 
+enum StoreSize
+{
+	STORE_SIZE_NONE,
+	STORE_SIZE_BYTE,
+	STORE_SIZE_WORD,
+	STORE_SIZE_DWORD,
+	STORE_SIZE_QWORD,
+};
+
 enum ExprKind
 {
 	EXPR_PRIMARY,
 	EXPR_BINARY,
 	EXPR_MEMBER,
+	EXPR_DEREF,
 };
 
 struct PrimaryExpr
@@ -49,6 +59,12 @@ struct MemberExpr
 	struct Token member;
 };
 
+struct DerefExpr
+{
+	enum StoreSize size;
+	struct Expr* address;
+};
+
 struct Expr
 {
 	enum ExprKind kind;
@@ -57,16 +73,8 @@ struct Expr
 		struct PrimaryExpr primary;
 		struct BinaryExpr binary;
 		struct MemberExpr member;
+		struct DerefExpr deref;
 	};
-};
-
-enum StoreSize
-{
-	STORE_SIZE_NONE,
-	STORE_SIZE_BYTE,
-	STORE_SIZE_WORD,
-	STORE_SIZE_DWORD,
-	STORE_SIZE_QWORD,
 };
 
 enum StatementKind

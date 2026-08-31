@@ -372,8 +372,36 @@ static void test_generate_logical_disabled(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_load(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nrax = ^rsi\nrbx = ^byte rsi\nrcx = ^dword rsi\nrdx = ^rsi + 4\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, [rsi]") != NULL);
+	check(context, strstr(buffer, "movzx rbx, byte [rsi]") != NULL);
+	check(context, strstr(buffer, "mov ecx, [rsi]") != NULL);
+	check(context, strstr(buffer, "mov rdx, [rsi]") != NULL);
+	check(context, strstr(buffer, "add rdx, 4") != NULL);
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
+	test_generate_load(context);
 	test_generate_logical_registers(context);
 	test_generate_logical_disabled(context);
 	test_generate_entry_and_bits(context);

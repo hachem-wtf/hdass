@@ -18,6 +18,9 @@ void free_expr(struct Expr* expr)
 		case EXPR_MEMBER:
 			free_expr(expr->member.object);
 			break;
+		case EXPR_DEREF:
+			free_expr(expr->deref.address);
+			break;
 	}
 
 	free(expr);

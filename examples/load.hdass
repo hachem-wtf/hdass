@@ -1,0 +1,17 @@
+[entry: main]
+
+// Stores 7 into a stack cell, loads it back through a pointer, and exits with it.
+const SYS_EXIT = 60
+
+proc main
+{
+    stack cell[8]
+
+    rbx = 7
+    rsi = cell        // address of the cell
+    ^rsi = rbx        // store
+    rdi = ^rsi        // load it back
+
+    rax = SYS_EXIT
+    syscall
+}

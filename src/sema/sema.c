@@ -227,6 +227,19 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 			check_expr(check, expr->binary.left);
 			check_expr(check, expr->binary.right);
 			break;
+		case EXPR_DEREF:
+		{
+			struct Expr* address = expr->deref.address;
+			if (address->kind == EXPR_PRIMARY
+				&& (is_register(check, address->primary.token) || is_param(check, address->primary.token)))
+				break;
+
+			if (address->kind == EXPR_PRIMARY)
+				ref_error(check, address->primary.token, "dereference address must be a register");
+			else
+				check_expr(check, address);
+			break;
+		}
 		case EXPR_MEMBER:
 		{
 			struct Expr* object = expr->member.object;

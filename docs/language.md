@@ -110,7 +110,14 @@ A leading size keyword sets the width explicitly. It down-converts a full regist
 ^byte  rsi = 10     // mov byte [rsi], 10
 ```
 
-`^` is store-only for now; loading with `rax = ^rsi` isn't supported yet.
+`^reg` is also a value — it loads from that address. A size keyword loads a narrower value and zero-extends it into the target:
+
+```hdass
+rax = ^rsi          // mov rax, [rsi]
+rbx = ^byte rsi     // movzx rbx, byte [rsi]
+rcx = ^dword rsi    // mov ecx, [rsi]        (32-bit load zero-extends)
+rdx = ^rsi + 4      // load, then add 4
+```
 
 ## Expressions
 

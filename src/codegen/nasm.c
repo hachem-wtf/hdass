@@ -203,6 +203,7 @@ static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 			return true;
 		}
 		case EXPR_BINARY:
+		case EXPR_DEREF:
 			return false;
 	}
 
@@ -248,6 +249,7 @@ static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 	{
 		case EXPR_PRIMARY:
 		case EXPR_MEMBER:
+		case EXPR_DEREF:
 			return true;
 		case EXPR_BINARY:
 			if (expr->binary.right->kind != EXPR_PRIMARY &&
@@ -262,8 +264,41 @@ static bool expr_supported(struct Emitter* emitter, struct Expr* expr)
 	return false;
 }
 
+// dst = [address], zero-extending narrower loads into the full register
+static void emit_load(struct Emitter* emitter, const char* dst, struct DerefExpr* deref)
+{
+	FILE* out = emitter->out;
+	switch (deref->size)
+	{
+		case STORE_SIZE_BYTE:
+			fprintf(out, "\tmovzx %s, byte [", dst);
+			break;
+		case STORE_SIZE_WORD:
+			fprintf(out, "\tmovzx %s, word [", dst);
+			break;
+		case STORE_SIZE_DWORD:
+		{
+			const char* dword = sized_register(text_token(dst), STORE_SIZE_DWORD);
+			fprintf(out, "\tmov %s, [", dword != NULL ? dword : dst);
+			break;
+		}
+		default:
+			fprintf(out, "\tmov %s, [", dst);
+			break;
+	}
+
+	emit_operand(emitter, deref->address);
+	fprintf(out, "]\n");
+}
+
 static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr* expr)
 {
+	if (expr->kind == EXPR_DEREF)
+	{
+		emit_load(emitter, dst, &expr->deref);
+		return;
+	}
+
 	if (expr->kind == EXPR_BINARY)
 	{
 		emit_expr_into(emitter, dst, expr->binary.left);
@@ -389,7 +424,8 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 	const char* mnemonic = assign_mnemonic(assign->op.type);
 	bool value_is_buffer = assign->value->kind == EXPR_PRIMARY 
 		                && is_buffer_name(emitter, assign->value->primary.token);
-	if (mnemonic == NULL || assign->value->kind == EXPR_BINARY || value_is_buffer)
+	if (mnemonic == NULL || assign->value->kind == EXPR_BINARY
+		|| assign->value->kind == EXPR_DEREF || value_is_buffer)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported assignment\n");
 		return;
@@ -458,7 +494,7 @@ static void emit_call(struct Emitter* emitter, struct CallStatement* call)
 
 	for (size_t i = 0; i < call->arg_count; i += 1)
 	{
-		if (call->args[i]->kind == EXPR_BINARY)
+		if (call->args[i]->kind == EXPR_BINARY || call->args[i]->kind == EXPR_DEREF)
 		{
 			fprintf(emitter->out, "\t; TODO: unsupported call argument\n");
 			continue;
@@ -478,7 +514,9 @@ static void emit_statement(struct Emitter* emitter, struct Statement* statement)
 static void emit_if(struct Emitter* emitter, struct IfStatement* branch)
 {
 	const char* jump = jump_if_false(branch->comparison.type);
-	if (jump == NULL || branch->left->kind == EXPR_BINARY || branch->right->kind == EXPR_BINARY)
+	if (jump == NULL
+		|| branch->left->kind == EXPR_BINARY || branch->left->kind == EXPR_DEREF
+		|| branch->right->kind == EXPR_BINARY || branch->right->kind == EXPR_DEREF)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported if\n");
 		return;

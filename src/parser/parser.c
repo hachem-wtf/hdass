@@ -133,8 +133,35 @@ static struct Expr* alloc_expr(enum ExprKind kind)
 	return expr;
 }
 
+static enum StoreSize parse_store_size(struct Parser* parser)
+{
+	if (match_token(parser, TOKEN_BYTE))
+		return STORE_SIZE_BYTE;
+	if (match_token(parser, TOKEN_WORD))
+		return STORE_SIZE_WORD;
+	if (match_token(parser, TOKEN_DWORD))
+		return STORE_SIZE_DWORD;
+	if (match_token(parser, TOKEN_QWORD))
+		return STORE_SIZE_QWORD;
+	return STORE_SIZE_NONE;
+}
+
 static struct Expr* parse_primary(struct Parser* parser)
 {
+	if (match_token(parser, TOKEN_CARET))
+	{
+		enum StoreSize size = parse_store_size(parser);
+
+		struct Expr* address = parse_primary(parser);
+		if (address == NULL)
+			return NULL;
+
+		struct Expr* deref = alloc_expr(EXPR_DEREF);
+		deref->deref.size = size;
+		deref->deref.address = address;
+		return deref;
+	}
+
 	if (check(parser, TOKEN_IDENTIFIER) || check(parser, TOKEN_INTEGER) || check(parser, TOKEN_CHAR))
 	{
 		advance_parser(parser);
@@ -350,19 +377,7 @@ static bool parse_statement(struct Parser* parser, struct Statement* out)
 	}
 
 	bool deref = match_token(parser, TOKEN_CARET);
-
-	enum StoreSize store_size = STORE_SIZE_NONE;
-	if (deref)
-	{
-		if (match_token(parser, TOKEN_BYTE))
-			store_size = STORE_SIZE_BYTE;
-		else if (match_token(parser, TOKEN_WORD))
-			store_size = STORE_SIZE_WORD;
-		else if (match_token(parser, TOKEN_DWORD))
-			store_size = STORE_SIZE_DWORD;
-		else if (match_token(parser, TOKEN_QWORD))
-			store_size = STORE_SIZE_QWORD;
-	}
+	enum StoreSize store_size = deref ? parse_store_size(parser) : STORE_SIZE_NONE;
 
 	if (!consume(parser, TOKEN_IDENTIFIER, "expected a statement"))
 		return false;
