@@ -6,6 +6,15 @@
 
 #include "lexer/lexer.h"
 
+enum StoreSize
+{
+	STORE_SIZE_NONE,
+	STORE_SIZE_BYTE,
+	STORE_SIZE_WORD,
+	STORE_SIZE_DWORD,
+	STORE_SIZE_QWORD,
+};
+
 struct ConstDecl
 {
 	struct Token name;
@@ -18,19 +27,32 @@ struct DataDecl
 	struct Token value;
 };
 
+struct EnumDecl
+{
+	struct Token name;
+	struct Token* members;
+	size_t member_count;
+	size_t member_capacity;
+};
+
+struct StructField
+{
+	struct Token name;
+	enum StoreSize size;
+};
+
+struct StructDecl
+{
+	struct Token name;
+	struct StructField* fields;
+	size_t field_count;
+	size_t field_capacity;
+};
+
 struct Param
 {
 	struct Token name;
 	struct Token reg;
-};
-
-enum StoreSize
-{
-	STORE_SIZE_NONE,
-	STORE_SIZE_BYTE,
-	STORE_SIZE_WORD,
-	STORE_SIZE_DWORD,
-	STORE_SIZE_QWORD,
 };
 
 enum ExprKind
@@ -175,6 +197,14 @@ struct Program
 	size_t data_count;
 	size_t data_capacity;
 
+	struct EnumDecl* enums;
+	size_t enum_count;
+	size_t enum_capacity;
+
+	struct StructDecl* structs;
+	size_t struct_count;
+	size_t struct_capacity;
+
 	struct ProcDecl* procs;
 	size_t proc_count;
 	size_t proc_capacity;
@@ -184,6 +214,14 @@ struct Program create_program(void);
 void free_program(struct Program* program);
 void add_const(struct Program* program, struct ConstDecl decl);
 void add_data(struct Program* program, struct DataDecl decl);
+
+struct EnumDecl create_enum(void);
+void add_enum_member(struct EnumDecl* decl, struct Token member);
+void add_enum(struct Program* program, struct EnumDecl decl);
+
+struct StructDecl create_struct(void);
+void add_struct_field(struct StructDecl* decl, struct StructField field);
+void add_struct(struct Program* program, struct StructDecl decl);
 
 struct ProcDecl create_proc(void);
 void free_proc(struct ProcDecl* proc);

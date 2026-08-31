@@ -53,6 +53,7 @@ static bool consume(struct Parser* parser, enum TokenType type, const char* mess
 }
 
 static struct Expr* parse_expression(struct Parser* parser);
+static enum StoreSize parse_store_size(struct Parser* parser);
 
 static bool parse_const(struct Parser* parser, struct Program* program)
 {
@@ -90,6 +91,89 @@ static bool parse_data(struct Parser* parser, struct Program* program)
 
 	add_data(program, decl);
 	return true;
+}
+
+static bool parse_enum(struct Parser* parser, struct Program* program)
+{
+	struct EnumDecl decl = create_enum();
+
+	if (!consume(parser, TOKEN_IDENTIFIER, "expected enum name after 'enum'"))
+		goto error;
+	decl.name = parser->previous;
+
+	if (!consume(parser, TOKEN_LEFT_BRACE, "expected '{' after enum name"))
+		goto error;
+
+	while (!check(parser, TOKEN_RIGHT_BRACE))
+	{
+		if (check(parser, TOKEN_EOF))
+		{
+			error_at(parser, parser->current, "unterminated enum");
+			goto error;
+		}
+
+		if (!consume(parser, TOKEN_IDENTIFIER, "expected an enum member name"))
+			goto error;
+		add_enum_member(&decl, parser->previous);
+
+		match_token(parser, TOKEN_COMMA);
+	}
+	advance_parser(parser);
+
+	add_enum(program, decl);
+	return true;
+
+error:
+	free(decl.members);
+	return false;
+}
+
+static bool parse_struct(struct Parser* parser, struct Program* program)
+{
+	struct StructDecl decl = create_struct();
+
+	if (!consume(parser, TOKEN_IDENTIFIER, "expected struct name after 'struct'"))
+		goto error;
+	decl.name = parser->previous;
+
+	if (!consume(parser, TOKEN_LEFT_BRACE, "expected '{' after struct name"))
+		goto error;
+
+	while (!check(parser, TOKEN_RIGHT_BRACE))
+	{
+		if (check(parser, TOKEN_EOF))
+		{
+			error_at(parser, parser->current, "unterminated struct");
+			goto error;
+		}
+
+		struct StructField field;
+		if (!consume(parser, TOKEN_IDENTIFIER, "expected a field name"))
+			goto error;
+		field.name = parser->previous;
+
+		field.size = STORE_SIZE_QWORD;
+		if (match_token(parser, TOKEN_COLON))
+		{
+			field.size = parse_store_size(parser);
+			if (field.size == STORE_SIZE_NONE)
+			{
+				error_at(parser, parser->current, "expected a size (byte, word, dword, qword) after ':'");
+				goto error;
+			}
+		}
+
+		add_struct_field(&decl, field);
+		match_token(parser, TOKEN_COMMA);
+	}
+	advance_parser(parser);
+
+	add_struct(program, decl);
+	return true;
+
+error:
+	free(decl.fields);
+	return false;
 }
 
 static bool parse_params(struct Parser* parser, struct ProcDecl* proc)
@@ -553,6 +637,18 @@ bool parse_program(struct Lexer* lexer, struct Program* out)
 		{
 			advance_parser(&parser);
 			if (!parse_data(&parser, out))
+				return false;
+		}
+		else if (check(&parser, TOKEN_ENUM))
+		{
+			advance_parser(&parser);
+			if (!parse_enum(&parser, out))
+				return false;
+		}
+		else if (check(&parser, TOKEN_STRUCT))
+		{
+			advance_parser(&parser);
+			if (!parse_struct(&parser, out))
 				return false;
 		}
 		else if (check(&parser, TOKEN_PROC))

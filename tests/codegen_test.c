@@ -399,8 +399,36 @@ static void test_generate_load(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_enum_struct(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"enum Color\n{\nRed,\nGreen,\nBlue\n}\n"
+		"struct Point\n{\nx: qword\ny: qword\nflag: byte\n}\n"
+		"proc main\n{\nrax = Color.Blue\nrbx = Point.y\nrcx = Point.flag\nrdx = Point.size\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	FILE* out = tmpfile();
+	generate_nasm(&program, out);
+	fflush(out);
+	rewind(out);
+
+	char buffer[1024];
+	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+
+	check(context, strstr(buffer, "mov rax, 2") != NULL);   // Color.Blue -> 2
+	check(context, strstr(buffer, "mov rbx, 8") != NULL);   // Point.y -> 8
+	check(context, strstr(buffer, "mov rcx, 16") != NULL);  // Point.flag -> 16
+	check(context, strstr(buffer, "mov rdx, 17") != NULL);  // Point.size -> 17
+
+	free_program(&program);
+}
+
 void run_codegen_tests(struct TestContext* context)
 {
+	test_generate_enum_struct(context);
 	test_generate_load(context);
 	test_generate_logical_registers(context);
 	test_generate_logical_disabled(context);

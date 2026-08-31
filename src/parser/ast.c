@@ -70,6 +70,12 @@ struct Program create_program(void)
 	program.data_decls = NULL;
 	program.data_count = 0;
 	program.data_capacity = 0;
+	program.enums = NULL;
+	program.enum_count = 0;
+	program.enum_capacity = 0;
+	program.structs = NULL;
+	program.struct_count = 0;
+	program.struct_capacity = 0;
 	program.procs = NULL;
 	program.proc_count = 0;
 	program.proc_capacity = 0;
@@ -83,6 +89,14 @@ void free_program(struct Program* program)
 	free(program->consts);
 	free(program->data_decls);
 
+	for (size_t i = 0; i < program->enum_count; i += 1)
+		free(program->enums[i].members);
+	free(program->enums);
+
+	for (size_t i = 0; i < program->struct_count; i += 1)
+		free(program->structs[i].fields);
+	free(program->structs);
+
 	for (size_t i = 0; i < program->proc_count; i += 1)
 		free_proc(&program->procs[i]);
 	free(program->procs);
@@ -93,6 +107,12 @@ void free_program(struct Program* program)
 	program->data_decls = NULL;
 	program->data_count = 0;
 	program->data_capacity = 0;
+	program->enums = NULL;
+	program->enum_count = 0;
+	program->enum_capacity = 0;
+	program->structs = NULL;
+	program->struct_count = 0;
+	program->struct_capacity = 0;
 	program->procs = NULL;
 	program->proc_count = 0;
 	program->proc_capacity = 0;
@@ -123,6 +143,76 @@ void add_data(struct Program* program, struct DataDecl decl)
 
 	program->data_decls[program->data_count] = decl;
 	program->data_count += 1;
+}
+
+struct EnumDecl create_enum(void)
+{
+	struct EnumDecl decl;
+	decl.members = NULL;
+	decl.member_count = 0;
+	decl.member_capacity = 0;
+	return decl;
+}
+
+void add_enum_member(struct EnumDecl* decl, struct Token member)
+{
+	if (decl->member_count == decl->member_capacity)
+	{
+		size_t capacity = decl->member_capacity < 8 ? 8 : decl->member_capacity * 2;
+		decl->members = realloc(decl->members, capacity * sizeof(struct Token));
+		decl->member_capacity = capacity;
+	}
+
+	decl->members[decl->member_count] = member;
+	decl->member_count += 1;
+}
+
+void add_enum(struct Program* program, struct EnumDecl decl)
+{
+	if (program->enum_count == program->enum_capacity)
+	{
+		size_t capacity = program->enum_capacity < 8 ? 8 : program->enum_capacity * 2;
+		program->enums = realloc(program->enums, capacity * sizeof(struct EnumDecl));
+		program->enum_capacity = capacity;
+	}
+
+	program->enums[program->enum_count] = decl;
+	program->enum_count += 1;
+}
+
+struct StructDecl create_struct(void)
+{
+	struct StructDecl decl;
+	decl.fields = NULL;
+	decl.field_count = 0;
+	decl.field_capacity = 0;
+	return decl;
+}
+
+void add_struct_field(struct StructDecl* decl, struct StructField field)
+{
+	if (decl->field_count == decl->field_capacity)
+	{
+		size_t capacity = decl->field_capacity < 8 ? 8 : decl->field_capacity * 2;
+		decl->fields = realloc(decl->fields, capacity * sizeof(struct StructField));
+		decl->field_capacity = capacity;
+	}
+
+	decl->fields[decl->field_count] = field;
+	decl->field_count += 1;
+}
+
+void add_struct(struct Program* program, struct StructDecl decl)
+{
+	if (program->struct_count == program->struct_capacity)
+	{
+		size_t capacity = program->struct_capacity < 8 ? 8 : program->struct_capacity * 2;
+		program->structs = realloc(program->structs, capacity * sizeof(struct StructDecl));
+		program->struct_capacity = capacity;
+	}
+
+	program->structs[program->struct_count] = decl;
+	program->struct_count += 1;
 }
 
 struct ProcDecl create_proc(void)

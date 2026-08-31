@@ -97,6 +97,17 @@ static void test_deref_needs_register(struct TestContext* context)
 	check(context, analyze_source("proc main\n{\nrax = ^rsi\n}\n"));
 }
 
+static void test_enum_struct_members(struct TestContext* context)
+{
+	check(context, analyze_source(
+		"enum Color\n{\nRed,\nGreen\n}\nstruct Point\n{\nx\ny\n}\n"
+		"proc main\n{\nrax = Color.Green\nrbx = Point.y\nrcx = Point.size\n}\n"));
+	check(context, !analyze_source(
+		"enum Color\n{\nRed\n}\nproc main\n{\nrax = Color.Nope\n}\n"));
+	check(context, !analyze_source(
+		"struct Point\n{\nx\n}\nproc main\n{\nrax = Point.z\n}\n"));
+}
+
 static void test_references_resolve(struct TestContext* context)
 {
 	// registers, params, consts, data (+ .len), stack buffers, labels, calls
@@ -133,5 +144,6 @@ void run_sema_tests(struct TestContext* context)
 	test_const_expr_rejects_register(context);
 	test_const_expr_rejects_data(context);
 	test_deref_needs_register(context);
+	test_enum_struct_members(context);
 	test_references_resolve(context);
 }

@@ -267,6 +267,27 @@ static void test_parse_register_size_suffix(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_parse_enum_struct(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"enum Color\n{\nRed,\nGreen,\nBlue\n}\nstruct Point\n{\nx\ny: byte\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.enum_count == 1);
+	check(context, text_is(program.enums[0].name, "Color"));
+	check(context, program.enums[0].member_count == 3);
+	check(context, text_is(program.enums[0].members[1], "Green"));
+
+	check(context, program.struct_count == 1);
+	check(context, text_is(program.structs[0].name, "Point"));
+	check(context, program.structs[0].field_count == 2);
+	check(context, program.structs[0].fields[0].size == STORE_SIZE_QWORD);
+	check(context, program.structs[0].fields[1].size == STORE_SIZE_BYTE);
+
+	free_program(&program);
+}
+
 static void test_parse_errors(struct TestContext* context)
 {
 	struct Program program;
@@ -300,5 +321,6 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_directives(context);
 	test_parse_bad_directive(context);
 	test_parse_register_size_suffix(context);
+	test_parse_enum_struct(context);
 	test_parse_errors(context);
 }

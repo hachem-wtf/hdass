@@ -1,0 +1,42 @@
+[entry: main]
+
+// An enum of status codes and a struct describing a memory layout. Stores two
+// fields into a stack instance, reads them back, and exits with their sum.
+enum Status
+{
+    Ok,
+    Warn,
+    Fail
+}
+
+struct Pair
+{
+    a: qword
+    b: qword
+}
+
+const SYS_EXIT = 60
+
+proc main
+{
+    stack pair[16]        // Pair.size
+
+    rsi = pair
+    rbx = 40
+    ^rsi = rbx            // pair.a (offset 0)
+
+    rsi = pair
+    rsi += Pair.b
+    rcx = Status.Fail     // 2
+    ^rsi = rcx            // pair.b (offset 8)
+
+    rsi = pair
+    rdi = ^rsi            // load a = 40
+    rsi = pair
+    rsi += Pair.b
+    rax = ^rsi            // load b = 2
+    rdi += rax            // 42
+
+    rax = SYS_EXIT
+    syscall
+}

@@ -59,6 +59,39 @@ const AREA = 8 * 6             // 48
 data message = "type shi.\n"   // message -> address, message.len -> 10
 ```
 
+## Enums and structs
+
+Both describe compile-time values reached with `Name.member`, which folds to an integer.
+
+`enum` names a set of constants numbered from 0:
+
+```hdass
+enum Status
+{
+    Ok,      // 0
+    Warn,    // 1
+    Fail     // 2
+}
+
+rax = Status.Fail    // mov rax, 2
+```
+
+`struct` describes a packed memory layout (no padding). Fields are `name` or `name: size`, where size defaults to `qword`. `Name.field` is the field's byte offset, and `Name.size` is the total size.
+
+```hdass
+struct Point
+{
+    x           // qword, offset 0
+    y           // qword, offset 8
+    flag: byte  //        offset 16
+}
+
+rsi += Point.y       // add rsi, 8
+rax = Point.size     // mov rax, 17
+```
+
+A struct is layout only — it allocates nothing. Pair it with a `stack` buffer and pointer arithmetic (see [examples/records.hdass](../examples/records.hdass)).
+
 ## Procedures
 
 `proc` groups a body. Parameters name registers — `value` below is `rdi`.

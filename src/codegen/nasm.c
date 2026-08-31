@@ -209,6 +209,84 @@ static enum StoreSize size_from_int(struct Token token)
 	}
 }
 
+static bool tokens_equal(struct Token a, struct Token b)
+{
+	return a.length == b.length && memcmp(a.start, b.start, a.length) == 0;
+}
+
+static bool token_matches(struct Token token, const char* text)
+{
+	size_t length = strlen(text);
+	return token.length == length && memcmp(token.start, text, length) == 0;
+}
+
+static struct EnumDecl* find_enum(struct Program* program, struct Token name)
+{
+	for (size_t i = 0; i < program->enum_count; i += 1)
+		if (tokens_equal(program->enums[i].name, name))
+			return &program->enums[i];
+
+	return NULL;
+}
+
+static struct StructDecl* find_struct(struct Program* program, struct Token name)
+{
+	for (size_t i = 0; i < program->struct_count; i += 1)
+		if (tokens_equal(program->structs[i].name, name))
+			return &program->structs[i];
+
+	return NULL;
+}
+
+static uint64_t store_size_bytes(enum StoreSize size)
+{
+	switch (size)
+	{
+		case STORE_SIZE_BYTE:  return 1;
+		case STORE_SIZE_WORD:  return 2;
+		case STORE_SIZE_DWORD: return 4;
+		default:               return 8;
+	}
+}
+
+// an enum member folds to its 0-based index; a struct member folds to its byte
+// offset (or the total size for `.size`)
+static bool emit_named_member(struct Emitter* emitter, struct Token object, struct Token member)
+{
+	struct EnumDecl* enumeration = find_enum(emitter->program, object);
+	if (enumeration != NULL)
+	{
+		for (size_t i = 0; i < enumeration->member_count; i += 1)
+			if (tokens_equal(enumeration->members[i], member))
+			{
+				fprintf(emitter->out, "%zu", i);
+				return true;
+			}
+	}
+
+	struct StructDecl* layout = find_struct(emitter->program, object);
+	if (layout != NULL)
+	{
+		uint64_t offset = 0;
+		for (size_t i = 0; i < layout->field_count; i += 1)
+		{
+			if (tokens_equal(layout->fields[i].name, member))
+			{
+				fprintf(emitter->out, "%llu", (unsigned long long)offset);
+				return true;
+			}
+			offset += store_size_bytes(layout->fields[i].size);
+		}
+		if (token_matches(member, "size"))
+		{
+			fprintf(emitter->out, "%llu", (unsigned long long)offset);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 {
 	switch (expr->kind)
@@ -234,6 +312,11 @@ static bool emit_operand(struct Emitter* emitter, struct Expr* expr)
 					fprintf(emitter->out, "%.*s", (int)base.length, base.start);
 				return true;
 			}
+
+			// enum value or struct offset
+			if (expr->member.object->kind == EXPR_PRIMARY
+				&& emit_named_member(emitter, expr->member.object->primary.token, expr->member.member))
+				return true;
 
 			if (!emit_operand(emitter, expr->member.object))
 				return false;

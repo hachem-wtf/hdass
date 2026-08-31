@@ -27,7 +27,8 @@ static struct ProcDecl* find_proc(struct Program* program, struct Token name)
 
 static bool check_duplicate_names(struct Source source, struct Program* program)
 {
-	size_t count = program->const_count + program->data_count + program->proc_count;
+	size_t count = program->const_count + program->data_count
+		+ program->enum_count + program->struct_count + program->proc_count;
 	if (count == 0)
 		return true;
 
@@ -41,6 +42,16 @@ static bool check_duplicate_names(struct Source source, struct Program* program)
 	for (size_t i = 0; i < program->data_count; i += 1)
 	{
 		names[n] = program->data_decls[i].name;
+		n += 1;
+	}
+	for (size_t i = 0; i < program->enum_count; i += 1)
+	{
+		names[n] = program->enums[i].name;
+		n += 1;
+	}
+	for (size_t i = 0; i < program->struct_count; i += 1)
+	{
+		names[n] = program->structs[i].name;
 		n += 1;
 	}
 	for (size_t i = 0; i < program->proc_count; i += 1)
@@ -241,6 +252,24 @@ static bool is_data(struct RefCheck* check, struct Token token)
 	return false;
 }
 
+static struct EnumDecl* find_enum(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->program->enum_count; i += 1)
+		if (names_equal(check->program->enums[i].name, token))
+			return &check->program->enums[i];
+
+	return NULL;
+}
+
+static struct StructDecl* find_struct(struct RefCheck* check, struct Token token)
+{
+	for (size_t i = 0; i < check->program->struct_count; i += 1)
+		if (names_equal(check->program->structs[i].name, token))
+			return &check->program->structs[i];
+
+	return NULL;
+}
+
 static bool is_stack_buffer(struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->proc->body_count; i += 1)
@@ -308,15 +337,48 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 			{
 				if (object->kind != EXPR_PRIMARY || !is_register(check, object->primary.token))
 					ref_error(check, member, "size suffix requires a register");
+				break;
 			}
-			else if (object->kind != EXPR_PRIMARY || !is_data(check, object->primary.token))
+
+			if (object->kind == EXPR_PRIMARY)
 			{
-				check_expr(check, object);
+				struct EnumDecl* enumeration = find_enum(check, object->primary.token);
+				if (enumeration != NULL)
+				{
+					bool found = false;
+					for (size_t i = 0; i < enumeration->member_count; i += 1)
+						if (names_equal(enumeration->members[i], member))
+							found = true;
+					if (!found)
+						ref_error(check, member, "enum '%.*s' has no member '%.*s'",
+							(int)object->primary.token.length, object->primary.token.start,
+							(int)member.length, member.start);
+					break;
+				}
+
+				struct StructDecl* layout = find_struct(check, object->primary.token);
+				if (layout != NULL)
+				{
+					bool found = token_is(member, "size");
+					for (size_t i = 0; i < layout->field_count; i += 1)
+						if (names_equal(layout->fields[i].name, member))
+							found = true;
+					if (!found)
+						ref_error(check, member, "struct '%.*s' has no field '%.*s'",
+							(int)object->primary.token.length, object->primary.token.start,
+							(int)member.length, member.start);
+					break;
+				}
+
+				if (is_data(check, object->primary.token))
+				{
+					if (!token_is(member, "len"))
+						ref_error(check, member, "unknown member '%.*s'", (int)member.length, member.start);
+					break;
+				}
 			}
-			else if (!token_is(member, "len"))
-			{
-				ref_error(check, member, "unknown member '%.*s'", (int)member.length, member.start);
-			}
+
+			check_expr(check, object);
 			break;
 		}
 	}

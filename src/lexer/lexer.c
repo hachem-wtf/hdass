@@ -34,6 +34,8 @@ static enum TokenType identifier_type(const char* start, size_t length)
 		{ "const",   5, TOKEN_CONST   },
 		{ "data",    4, TOKEN_DATA    },
 		{ "proc",    4, TOKEN_PROC    },
+		{ "enum",    4, TOKEN_ENUM    },
+		{ "struct",  6, TOKEN_STRUCT  },
 		{ "stack",   5, TOKEN_STACK   },
 		{ "if",      2, TOKEN_IF      },
 		{ "goto",    4, TOKEN_GOTO    },
@@ -247,6 +249,8 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_CONST:         return "const";
 		case TOKEN_DATA:          return "data";
 		case TOKEN_PROC:          return "proc";
+		case TOKEN_ENUM:          return "enum";
+		case TOKEN_STRUCT:        return "struct";
 		case TOKEN_STACK:         return "stack";
 		case TOKEN_IF:            return "if";
 		case TOKEN_GOTO:          return "goto";

@@ -84,6 +84,7 @@ check logical     "logical register names (r1..r14)"      examples/logical.hdass
 check mul_div     "multiply and non-rax division"         examples/mul_div.hdass     8  ""
 check load        "stores then loads through a pointer"   examples/load.hdass        7  ""
 check constants   "hex literals and constant folding"     examples/constants.hdass   42 ""
+check records     "enum values and struct field offsets"  examples/records.hdass     42 ""
 check fibonacci   "prints the first ten Fibonacci numbers" examples/fibonacci.hdass  0  "0
 1
 1
