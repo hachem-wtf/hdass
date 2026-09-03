@@ -5,21 +5,32 @@
 #include "codegen/nasm.h"
 #include "tests.h"
 
+static void generate_to_buffer(struct Program* program, char* buffer, size_t size)
+{
+	FILE* out = tmpfile();
+	if (out == NULL)
+	{
+		buffer[0] = '\0';
+		return;
+	}
+
+	generate_nasm(program, out);
+	fflush(out);
+	rewind(out);
+
+	size_t read = fread(buffer, 1, size - 1, out);
+	buffer[read] = '\0';
+	fclose(out);
+}
+
 static void test_generate_consts_and_data(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer("const N = 5\ndata msg = \"hi\"\n");
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "%define N (5)") != NULL);
 	check(context, strstr(buffer, "section .data") != NULL);
@@ -37,15 +48,8 @@ static void test_generate_text(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "main:") != NULL);
 	check(context, strstr(buffer, "mov rax, SYS_WRITE") != NULL);
@@ -65,15 +69,8 @@ static void test_generate_if(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "cmp rcx, 0") != NULL);
 	check(context, strstr(buffer, "je .if_end_0") != NULL);
@@ -90,15 +87,8 @@ static void test_generate_call(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rdi, r12") != NULL);
 	check(context, strstr(buffer, "call print_number") != NULL);
@@ -113,15 +103,8 @@ static void test_generate_param_substitution(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, rdi") != NULL);
 	check(context, strstr(buffer, "value") == NULL);
@@ -135,15 +118,8 @@ static void test_generate_divide(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "cqo") != NULL);
 	check(context, strstr(buffer, "idiv rbx") != NULL);
@@ -157,20 +133,32 @@ static void test_generate_multiply(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, rbx") != NULL);
 	check(context, strstr(buffer, "imul rax, rcx") != NULL);
 	check(context, strstr(buffer, "imul rbx, 3") != NULL);
 	check(context, strstr(buffer, "add rbx, rdx") != NULL);
+	check(context, strstr(buffer, "; TODO") == NULL);
+
+	free_program(&program);
+}
+
+static void test_generate_modulo(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer("proc main\n{\nrbx %= rcx\nrax = rsi % rdi\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	char buffer[1024];
+	generate_to_buffer(&program, buffer, sizeof(buffer));
+
+	// modulo takes idiv's remainder from rdx
+	check(context, strstr(buffer, "mov rax, rbx") != NULL);
+	check(context, strstr(buffer, "idiv rcx") != NULL);
+	check(context, strstr(buffer, "mov rbx, rdx") != NULL);
+	check(context, strstr(buffer, "mov rax, rdx") != NULL);
 	check(context, strstr(buffer, "; TODO") == NULL);
 
 	free_program(&program);
@@ -183,15 +171,8 @@ static void test_generate_divide_nonrax(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, rbx") != NULL);
 	check(context, strstr(buffer, "idiv rcx") != NULL);
@@ -208,15 +189,8 @@ static void test_generate_stack_frame(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "push rbp") != NULL);
 	check(context, strstr(buffer, "mov rbp, rsp") != NULL);
@@ -233,15 +207,8 @@ static void test_generate_address_expr(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "lea rsi, [rbp - 32]") != NULL);
 	check(context, strstr(buffer, "add rsi, 31") != NULL);
@@ -260,15 +227,8 @@ static void test_generate_sized_store(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov byte [rsi], dl") != NULL);
 	check(context, strstr(buffer, "mov dword [rsi], eax") != NULL);
@@ -284,15 +244,8 @@ static void test_generate_entry_and_bits(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&with_entry, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "bits 64") != NULL);
 	check(context, strstr(buffer, "global main") != NULL);
@@ -310,15 +263,8 @@ static void test_generate_no_entry(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&no_entry, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "global") == NULL);
 	check(context, strstr(buffer, "main:") != NULL);
@@ -333,15 +279,8 @@ static void test_generate_logical_registers(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, 5") != NULL);    // r1 -> rax
 	check(context, strstr(buffer, "mov rdx, r11") != NULL);  // r4 -> rdx, r10 -> r11
@@ -356,15 +295,8 @@ static void test_generate_logical_disabled(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	// without the extension, r1 is passed through untouched
 	check(context, strstr(buffer, "mov r1, 5") != NULL);
@@ -379,15 +311,8 @@ static void test_generate_load(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, [rsi]") != NULL);
 	check(context, strstr(buffer, "movzx rbx, byte [rsi]") != NULL);
@@ -408,15 +333,8 @@ static void test_generate_enum_struct(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "mov rax, 2") != NULL);   // Color.Blue -> 2
 	check(context, strstr(buffer, "mov rbx, 8") != NULL);   // Point.y -> 8
@@ -433,15 +351,8 @@ static void test_generate_floats(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "__float0: dq 3.5") != NULL);
 	check(context, strstr(buffer, "movsd xmm0, [__float0]") != NULL);
@@ -459,15 +370,8 @@ static void test_generate_float_compare(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "ucomisd xmm0, [__float0]") != NULL);
 	check(context, strstr(buffer, "jbe .if_end") != NULL); // '>' skips when <=
@@ -483,15 +387,8 @@ static void test_generate_add_zero_peephole(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "add rax, 0") == NULL);
 	check(context, strstr(buffer, "sub rbx, 0") == NULL);
@@ -506,15 +403,8 @@ static void test_generate_float_memory(struct TestContext* context)
 	struct Program program;
 	check(context, parse_program(&lexer, &program));
 
-	FILE* out = tmpfile();
-	generate_nasm(&program, out);
-	fflush(out);
-	rewind(out);
-
 	char buffer[1024];
-	size_t read = fread(buffer, 1, sizeof(buffer) - 1, out);
-	buffer[read] = '\0';
-	fclose(out);
+	generate_to_buffer(&program, buffer, sizeof(buffer));
 
 	check(context, strstr(buffer, "movsd [rsi], xmm0") != NULL); // float store
 	check(context, strstr(buffer, "movsd xmm1, [rsi]") != NULL); // float load
@@ -542,6 +432,7 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_param_substitution(context);
 	test_generate_divide(context);
 	test_generate_multiply(context);
+	test_generate_modulo(context);
 	test_generate_divide_nonrax(context);
 	test_generate_stack_frame(context);
 	test_generate_address_expr(context);

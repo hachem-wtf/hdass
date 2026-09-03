@@ -113,8 +113,8 @@ Written by their architecture names — `rax`–`rdi`, `rbp`, `rsp`, `r8`–`r15
 
 ```hdass
 rax = SYS_WRITE     // mov
-rcx -= 1            // += -= *= /=  ->  add sub imul idiv
-rax = rbx * rcx     // + - * / in a value; / and /= use rax:rdx (see Gotchas)
+rcx -= 1            // += -= *= /= %=  ->  add sub imul idiv (idiv)
+rax = rbx * rcx     // + - * / % in a value; / % and their = forms use rax:rdx
 rdx = buffer + 31   // address math
 loop:               // label
 goto loop
@@ -156,7 +156,7 @@ rdx = ^rsi + 4      // load, then add 4
 
 ## Expressions
 
-Assignment values and `if` operands: registers, integers, chars (`'0'`), constants, data names, member access (`data.len`), and `+` `-` `*` `/`. Operators are left-associative and each right-hand operand must be a single term, so `a * b + c` works but `a + b * c` (a nested right operand) doesn't yet.
+Assignment values and `if` operands: registers, integers, chars (`'0'`), constants, data names, member access (`data.len`), and `+` `-` `*` `/` `%`. Operators are left-associative and each right-hand operand must be a single term, so `a * b + c` works but `a + b * c` (a nested right operand) doesn't yet.
 
 ## Extensions
 
@@ -231,9 +231,6 @@ ld -e main program.o -o program
 
 The [README](../README.md) has a Docker setup with these tools.
 
-## Gotchas
+## Some stinkies
+Clobbering is your responsibility: `syscall` trashes `rcx` and `r11`, while a callee can trash any registers it touches, so nothing is saved automatically. `examples/fibonacci.hdass`, for example, keeps its counter in `r15` for this reason. Register widths must also match, meaning something like `rax = r1.8` would become `mov rax, al`, which will not assemble. Division has its own restrictions: `/` and `/=` use `idiv` through `rax:rdx`, clobbering both registers regardless of the destination, and the divisor cannot be `rax`, `rdx`, or an immediate, so it must first be placed in another register. Finally, the entry procedure has no `ret`; it should end with an exit syscall.
 
-- **Clobbering is yours.** `syscall` trashes `rcx`/`r11`; a callee trashes what it touches. Nothing is saved for you — `examples/fibonacci.hdass` keeps its counter in `r15` for this reason.
-- **Widths must match.** `rax = r1.8` becomes `mov rax, al`, which won't assemble.
-- **Division uses `rax:rdx`.** `/` and `/=` go through `idiv`, so they clobber `rax` and `rdx` regardless of the target, and the divisor can't be `rax`, `rdx`, or an immediate — put it in another register first.
-- **The entry procedure has no `ret`** — end it with an exit syscall.

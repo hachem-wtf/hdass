@@ -20,6 +20,9 @@ docker compose exec -T -e SRC="$file" -e NAME="$name" hdass bash -c '
 	premake5 gmake >/dev/null
 	make config=debug >/dev/null
 	./bin/debug-linux/hdass "$SRC" -o "/tmp/$NAME.asm"
+	echo
+	cat "/tmp/$NAME.asm"
+	echo
 	nasm -f elf64 "/tmp/$NAME.asm" -o "/tmp/$NAME.o"
 	ld -e main "/tmp/$NAME.o" -o "/tmp/$NAME"
 	set +e

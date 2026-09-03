@@ -82,6 +82,7 @@ check branch      "selects the larger of two values"      examples/branch.hdass 
 check call        "passes an argument through a proc"     examples/call.hdass        21 ""
 check logical     "logical register names (r1..r14)"      examples/logical.hdass     21 ""
 check mul_div     "multiply and non-rax division"         examples/mul_div.hdass     8  ""
+check modulo      "the modulo operator (%)"               examples/modulo.hdass      24 ""
 check load        "stores then loads through a pointer"   examples/load.hdass        7  ""
 check constants   "hex literals and constant folding"     examples/constants.hdass   42 ""
 check records     "enum values and struct field offsets"  examples/records.hdass     42 ""

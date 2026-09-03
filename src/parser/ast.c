@@ -150,10 +150,7 @@ void add_data(struct Program* program, struct DataDecl decl)
 
 struct EnumDecl create_enum(void)
 {
-	struct EnumDecl decl;
-	decl.members = NULL;
-	decl.member_count = 0;
-	decl.member_capacity = 0;
+	struct EnumDecl decl = { 0 };
 	return decl;
 }
 
@@ -185,10 +182,7 @@ void add_enum(struct Program* program, struct EnumDecl decl)
 
 struct StructDecl create_struct(void)
 {
-	struct StructDecl decl;
-	decl.fields = NULL;
-	decl.field_count = 0;
-	decl.field_capacity = 0;
+	struct StructDecl decl = { 0 };
 	return decl;
 }
 
@@ -220,13 +214,7 @@ void add_struct(struct Program* program, struct StructDecl decl)
 
 struct ProcDecl create_proc(void)
 {
-	struct ProcDecl proc;
-	proc.params = NULL;
-	proc.param_count = 0;
-	proc.param_capacity = 0;
-	proc.body = NULL;
-	proc.body_count = 0;
-	proc.body_capacity = 0;
+	struct ProcDecl proc = { 0 };
 	return proc;
 }
 

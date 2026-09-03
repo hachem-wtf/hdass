@@ -93,7 +93,7 @@ static bool is_float_register(struct Token token)
 	return true;
 }
 
-static size_t float_index(struct FloatTable* floats, struct Token literal)
+static size_t float_index(const struct FloatTable* floats, struct Token literal)
 {
 	for (size_t i = 0; i < floats->count; i += 1)
 		if (floats->items[i].length == literal.length
@@ -310,7 +310,7 @@ static bool fold_member(struct Program* program, struct Expr* object, struct Tok
 		return false;
 	struct Token name = object->primary.token;
 
-	struct EnumDecl* enumeration = find_enum(program, name);
+	const struct EnumDecl* enumeration = find_enum(program, name);
 	if (enumeration != NULL)
 	{
 		for (size_t i = 0; i < enumeration->member_count; i += 1)
@@ -322,7 +322,7 @@ static bool fold_member(struct Program* program, struct Expr* object, struct Tok
 		return false;
 	}
 
-	struct StructDecl* layout = find_struct(program, name);
+	const struct StructDecl* layout = find_struct(program, name);
 	if (layout != NULL)
 	{
 		uint64_t offset = 0;
@@ -400,7 +400,7 @@ static bool fold_const(struct Program* program, struct Expr* expr, uint64_t* out
 // offset (or the total size for `.size`)
 static bool emit_named_member(struct Emitter* emitter, struct Token object, struct Token member)
 {
-	struct EnumDecl* enumeration = find_enum(emitter->program, object);
+	const struct EnumDecl* enumeration = find_enum(emitter->program, object);
 	if (enumeration != NULL)
 	{
 		for (size_t i = 0; i < enumeration->member_count; i += 1)
@@ -411,7 +411,7 @@ static bool emit_named_member(struct Emitter* emitter, struct Token object, stru
 			}
 	}
 
-	struct StructDecl* layout = find_struct(emitter->program, object);
+	const struct StructDecl* layout = find_struct(emitter->program, object);
 	if (layout != NULL)
 	{
 		uint64_t offset = 0;
@@ -494,6 +494,19 @@ static void emit_division(struct Emitter* emitter, const char* dst, struct Expr*
 		fprintf(emitter->out, "\tmov %s, rax\n", dst);
 }
 
+// idiv leaves the remainder in rdx, so a modulo takes its result from there
+static void emit_modulo(struct Emitter* emitter, const char* dst, struct Expr* divisor)
+{
+	if (strcmp(dst, "rax") != 0)
+		fprintf(emitter->out, "\tmov rax, %s\n", dst);
+	fprintf(emitter->out, "\tcqo\n");
+	fprintf(emitter->out, "\tidiv ");
+	emit_operand(emitter, divisor);
+	fprintf(emitter->out, "\n");
+	if (strcmp(dst, "rdx") != 0)
+		fprintf(emitter->out, "\tmov %s, rdx\n", dst);
+}
+
 static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
 {
 	if (assign->target_deref)
@@ -505,7 +518,11 @@ static void emit_divide(struct Emitter* emitter, struct AssignStatement* assign)
 	struct Token target = resolve_register(emitter, assign->target);
 	char dst[32];
 	snprintf(dst, sizeof(dst), "%.*s", (int)target.length, target.start);
-	emit_division(emitter, dst, assign->value);
+
+	if (assign->op.type == TOKEN_PERCENT_EQUAL)
+		emit_modulo(emitter, dst, assign->value);
+	else
+		emit_division(emitter, dst, assign->value);
 }
 
 // an expression can be evaluated into a register when it is a single term
@@ -574,6 +591,11 @@ static void emit_expr_into(struct Emitter* emitter, const char* dst, struct Expr
 		if (expr->binary.op.type == TOKEN_SLASH)
 		{
 			emit_division(emitter, dst, expr->binary.right);
+			return;
+		}
+		if (expr->binary.op.type == TOKEN_PERCENT)
+		{
+			emit_modulo(emitter, dst, expr->binary.right);
 			return;
 		}
 
@@ -677,7 +699,7 @@ static const char* float_mnemonic(enum TokenType op)
 	}
 }
 
-static bool value_is_float(struct Emitter* emitter, struct Expr* expr)
+static bool value_is_float(struct Emitter* emitter, const struct Expr* expr)
 {
 	if (expr->kind != EXPR_PRIMARY)
 		return false;
@@ -766,7 +788,7 @@ static void emit_assign(struct Emitter* emitter, struct AssignStatement* assign)
 		return;
 	}
 
-	if (assign->op.type == TOKEN_SLASH_EQUAL)
+	if (assign->op.type == TOKEN_SLASH_EQUAL || assign->op.type == TOKEN_PERCENT_EQUAL)
 	{
 		emit_divide(emitter, assign);
 		return;
@@ -860,7 +882,7 @@ static struct ProcDecl* find_proc(struct Program* program, struct Token name)
 
 static void emit_call(struct Emitter* emitter, struct CallStatement* call)
 {
-	struct ProcDecl* callee = find_proc(emitter->program, call->name);
+	const struct ProcDecl* callee = find_proc(emitter->program, call->name);
 	if (callee == NULL || callee->param_count != call->arg_count)
 	{
 		fprintf(emitter->out, "\t; TODO: unsupported call\n");
@@ -902,7 +924,7 @@ static const char* float_jump_if_false(enum TokenType comparison)
 	}
 }
 
-static void emit_float_operand(struct Emitter* emitter, struct Expr* expr)
+static void emit_float_operand(struct Emitter* emitter, const struct Expr* expr)
 {
 	if (expr->kind == EXPR_PRIMARY && expr->primary.token.type == TOKEN_FLOAT)
 	{
@@ -1082,7 +1104,7 @@ static struct FloatTable collect_floats(struct Program* program)
 	return floats;
 }
 
-static void emit_float_data(struct FloatTable* floats, FILE* out)
+static void emit_float_data(const struct FloatTable* floats, FILE* out)
 {
 	for (size_t i = 0; i < floats->count; i += 1)
 		fprintf(out, "__float%zu: dq %.*s\n", i,

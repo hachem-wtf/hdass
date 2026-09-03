@@ -1,0 +1,15 @@
+[entry: main]
+
+// Modulo: 2024 % 100 = 24, returned as the exit status.
+const SYS_EXIT = 60
+
+proc main
+{
+    rax = 2024
+    rbx = 100
+    rax %= rbx
+
+    rdi = rax
+    rax = SYS_EXIT
+    syscall
+}

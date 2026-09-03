@@ -33,6 +33,8 @@ static bool check_duplicate_names(struct Source source, struct Program* program)
 		return true;
 
 	struct Token* names = malloc(count * sizeof(struct Token));
+	if (names == NULL)
+		return true;
 	size_t n = 0;
 	for (size_t i = 0; i < program->const_count; i += 1)
 	{
@@ -92,7 +94,7 @@ static bool check_entry_point(struct Source source, struct Program* program)
 	return false;
 }
 
-static bool is_program_const(struct Program* program, struct Token name)
+static bool is_program_const(const struct Program* program, struct Token name)
 {
 	for (size_t i = 0; i < program->const_count; i += 1)
 		if (names_equal(program->consts[i].name, name))
@@ -227,7 +229,7 @@ static bool is_register(struct RefCheck* check, struct Token token)
 	return check->program->config.logical_registers && is_logical_register(token);
 }
 
-static bool is_param(struct RefCheck* check, struct Token token)
+static bool is_param(const struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->proc->param_count; i += 1)
 		if (names_equal(check->proc->params[i].name, token))
@@ -236,7 +238,7 @@ static bool is_param(struct RefCheck* check, struct Token token)
 	return false;
 }
 
-static bool is_const(struct RefCheck* check, struct Token token)
+static bool is_const(const struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->program->const_count; i += 1)
 		if (names_equal(check->program->consts[i].name, token))
@@ -245,7 +247,7 @@ static bool is_const(struct RefCheck* check, struct Token token)
 	return false;
 }
 
-static bool is_data(struct RefCheck* check, struct Token token)
+static bool is_data(const struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->program->data_count; i += 1)
 		if (names_equal(check->program->data_decls[i].name, token))
@@ -276,7 +278,7 @@ static bool is_stack_buffer(struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->proc->body_count; i += 1)
 	{
-		struct Statement* statement = &check->proc->body[i];
+		const struct Statement* statement = &check->proc->body[i];
 		if (statement->kind == STATEMENT_STACK && names_equal(statement->stack.name, token))
 			return true;
 	}
@@ -288,7 +290,7 @@ static bool is_label(struct RefCheck* check, struct Token token)
 {
 	for (size_t i = 0; i < check->proc->body_count; i += 1)
 	{
-		struct Statement* statement = &check->proc->body[i];
+		const struct Statement* statement = &check->proc->body[i];
 		if (statement->kind == STATEMENT_LABEL && names_equal(statement->label.name, token))
 			return true;
 	}
@@ -305,7 +307,7 @@ static void check_value_name(struct RefCheck* check, struct Token name)
 	ref_error(check, name, "undefined name '%.*s'", (int)name.length, name.start);
 }
 
-static void check_expr(struct RefCheck* check, struct Expr* expr)
+static void check_expr(struct RefCheck* check, const struct Expr* expr)
 {
 	switch (expr->kind)
 	{
@@ -319,7 +321,7 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 			break;
 		case EXPR_DEREF:
 		{
-			struct Expr* address = expr->deref.address;
+			const struct Expr* address = expr->deref.address;
 			if (address->kind == EXPR_PRIMARY
 				&& (is_register(check, address->primary.token) || is_param(check, address->primary.token)))
 				break;
@@ -332,7 +334,7 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 		}
 		case EXPR_MEMBER:
 		{
-			struct Expr* object = expr->member.object;
+			const struct Expr* object = expr->member.object;
 			struct Token member = expr->member.member;
 
 			if (member.type == TOKEN_INTEGER)
@@ -344,7 +346,7 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 
 			if (object->kind == EXPR_PRIMARY)
 			{
-				struct EnumDecl* enumeration = find_enum(check, object->primary.token);
+				const struct EnumDecl* enumeration = find_enum(check, object->primary.token);
 				if (enumeration != NULL)
 				{
 					bool found = false;
@@ -358,7 +360,7 @@ static void check_expr(struct RefCheck* check, struct Expr* expr)
 					break;
 				}
 
-				struct StructDecl* layout = find_struct(check, object->primary.token);
+				const struct StructDecl* layout = find_struct(check, object->primary.token);
 				if (layout != NULL)
 				{
 					bool found = token_is(member, "size");
@@ -406,7 +408,7 @@ static void check_stack_size(struct RefCheck* check, struct Expr* expr)
 			break;
 		case EXPR_MEMBER:
 		{
-			struct Expr* object = expr->member.object;
+			const struct Expr* object = expr->member.object;
 			if (object->kind == EXPR_PRIMARY
 				&& (find_enum(check, object->primary.token) != NULL
 					|| find_struct(check, object->primary.token) != NULL))

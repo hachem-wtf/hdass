@@ -209,13 +209,15 @@ static bool is_assign_op(enum TokenType type)
 		|| type == TOKEN_PLUS_EQUAL
 		|| type == TOKEN_MINUS_EQUAL
 		|| type == TOKEN_STAR_EQUAL
-		|| type == TOKEN_SLASH_EQUAL;
+		|| type == TOKEN_SLASH_EQUAL
+		|| type == TOKEN_PERCENT_EQUAL;
 }
 
 static struct Expr* alloc_expr(enum ExprKind kind)
 {
 	struct Expr* expr = malloc(sizeof(struct Expr));
-	expr->kind = kind;
+	if (expr != NULL)
+		expr->kind = kind;
 	return expr;
 }
 
@@ -289,13 +291,14 @@ static struct Expr* parse_postfix(struct Parser* parser)
 	return expr;
 }
 
-static struct Expr* parse_binary(struct Parser* parser, struct Expr* (*operand)(struct Parser*), enum TokenType a, enum TokenType b)
+static struct Expr* parse_binary(struct Parser* parser, struct Expr* (*operand)(struct Parser*),
+	enum TokenType a, enum TokenType b, enum TokenType c)
 {
 	struct Expr* left = operand(parser);
 	if (left == NULL)
 		return NULL;
 
-	while (check(parser, a) || check(parser, b))
+	while (check(parser, a) || check(parser, b) || check(parser, c))
 	{
 		advance_parser(parser);
 		struct Token op = parser->previous;
@@ -319,12 +322,12 @@ static struct Expr* parse_binary(struct Parser* parser, struct Expr* (*operand)(
 
 static struct Expr* parse_multiplicative(struct Parser* parser)
 {
-	return parse_binary(parser, parse_postfix, TOKEN_STAR, TOKEN_SLASH);
+	return parse_binary(parser, parse_postfix, TOKEN_STAR, TOKEN_SLASH, TOKEN_PERCENT);
 }
 
 static struct Expr* parse_expression(struct Parser* parser)
 {
-	return parse_binary(parser, parse_multiplicative, TOKEN_PLUS, TOKEN_MINUS);
+	return parse_binary(parser, parse_multiplicative, TOKEN_PLUS, TOKEN_MINUS, TOKEN_MINUS);
 }
 
 static bool is_compare_op(enum TokenType type)
@@ -354,7 +357,13 @@ static bool parse_call(struct Parser* parser, struct Token name, struct Statemen
 			if (count == capacity)
 			{
 				capacity = capacity < 4 ? 4 : capacity * 2;
-				args = realloc(args, capacity * sizeof(struct Expr*));
+				struct Expr** grown = realloc(args, capacity * sizeof(struct Expr*));
+				if (grown == NULL)
+				{
+					free_expr(arg);
+					goto error;
+				}
+				args = grown;
 			}
 			args[count] = arg;
 			count += 1;
@@ -614,7 +623,7 @@ static bool parse_directive(struct Parser* parser, struct Program* program)
 
 bool parse_program(struct Lexer* lexer, struct Program* out)
 {
-	struct Parser parser;
+	struct Parser parser = { 0 };
 	parser.lexer = lexer;
 	parser.source.name = lexer->name;
 	parser.source.text = lexer->source;

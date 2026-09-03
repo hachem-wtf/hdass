@@ -114,7 +114,7 @@ static void skip_whitespace(struct Lexer* lexer)
 	}
 }
 
-static struct Token make_token(struct Lexer* lexer, enum TokenType type, const char* start)
+static struct Token make_token(const struct Lexer* lexer, enum TokenType type, const char* start)
 {
 	struct Token token;
 	token.type = type;
@@ -231,6 +231,7 @@ struct Token scan_token(struct Lexer* lexer)
 		case '-': return make_token(lexer, match(lexer, '=') ? TOKEN_MINUS_EQUAL   : TOKEN_MINUS,   start);
 		case '*': return make_token(lexer, match(lexer, '=') ? TOKEN_STAR_EQUAL    : TOKEN_STAR,    start);
 		case '/': return make_token(lexer, match(lexer, '=') ? TOKEN_SLASH_EQUAL   : TOKEN_SLASH,   start);
+		case '%': return make_token(lexer, match(lexer, '=') ? TOKEN_PERCENT_EQUAL : TOKEN_PERCENT, start);
 
 		case '^': return make_token(lexer, TOKEN_CARET,         start);
 		case '.': return make_token(lexer, TOKEN_DOT,           start);
@@ -275,6 +276,7 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_MINUS:         return "minus";
 		case TOKEN_STAR:          return "star";
 		case TOKEN_SLASH:         return "slash";
+		case TOKEN_PERCENT:       return "percent";
 		case TOKEN_CARET:         return "caret";
 		case TOKEN_BANG:          return "bang";
 		case TOKEN_LESS:          return "less";
@@ -294,6 +296,7 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_MINUS_EQUAL:   return "minus_equal";
 		case TOKEN_STAR_EQUAL:    return "star_equal";
 		case TOKEN_SLASH_EQUAL:   return "slash_equal";
+		case TOKEN_PERCENT_EQUAL: return "percent_equal";
 		case TOKEN_LESS_EQUAL:    return "less_equal";
 		case TOKEN_GREATER_EQUAL: return "greater_equal";
 		case TOKEN_UNKNOWN:       return "unknown";

@@ -10,7 +10,7 @@ static bool text_is(struct Token token, const char* text)
 	return token.length == length && memcmp(token.start, text, length) == 0;
 }
 
-static bool primary_is(struct Expr* expr, const char* text)
+static bool primary_is(const struct Expr* expr, const char* text)
 {
 	return expr->kind == EXPR_PRIMARY && text_is(expr->primary.token, text);
 }
@@ -37,7 +37,7 @@ static void test_parse_const_expr(struct TestContext* context)
 
 	check(context, parse_program(&lexer, &program));
 
-	struct Expr* value = program.consts[1].value;
+	const struct Expr* value = program.consts[1].value;
 	check(context, value->kind == EXPR_BINARY);
 	check(context, text_is(value->binary.op, "+"));
 	check(context, primary_is(value->binary.left, "A"));
@@ -133,13 +133,13 @@ static void test_parse_expressions(struct TestContext* context)
 	check(context, parse_program(&lexer, &program));
 	check(context, program.procs[0].body_count == 2);
 
-	struct Expr* sum = program.procs[0].body[0].assign.value;
+	const struct Expr* sum = program.procs[0].body[0].assign.value;
 	check(context, sum->kind == EXPR_BINARY);
 	check(context, text_is(sum->binary.op, "+"));
 	check(context, primary_is(sum->binary.left, "buffer"));
 	check(context, primary_is(sum->binary.right, "31"));
 
-	struct Expr* member = program.procs[0].body[1].assign.value;
+	const struct Expr* member = program.procs[0].body[1].assign.value;
 	check(context, member->kind == EXPR_MEMBER);
 	check(context, primary_is(member->member.object, "message"));
 	check(context, text_is(member->member.member, "len"));
@@ -257,7 +257,7 @@ static void test_parse_register_size_suffix(struct TestContext* context)
 
 	check(context, parse_program(&lexer, &program));
 
-	struct Expr* value = program.procs[0].body[0].assign.value;
+	const struct Expr* value = program.procs[0].body[0].assign.value;
 	check(context, value->kind == EXPR_MEMBER);
 	check(context, value->member.member.type == TOKEN_INTEGER);
 	check(context, text_is(value->member.member, "8"));
