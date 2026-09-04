@@ -32,7 +32,7 @@ static bool check_duplicate_names(struct Source source, struct Program* program)
 	if (count == 0)
 		return true;
 
-	struct Token* names = malloc(count * sizeof(struct Token));
+	struct Token* names = malloc(count * sizeof(*names));
 	if (names == NULL)
 		return true;
 	size_t n = 0;
@@ -449,7 +449,10 @@ static void check_statement(struct RefCheck* check, struct Statement* statement)
 		case STATEMENT_IF:
 			check_expr(check, statement->branch.left);
 			check_expr(check, statement->branch.right);
-			check_statement(check, statement->branch.body);
+			for (size_t i = 0; i < statement->branch.body_count; i += 1)
+				check_statement(check, &statement->branch.body[i]);
+			for (size_t i = 0; i < statement->branch.else_count; i += 1)
+				check_statement(check, &statement->branch.else_body[i]);
 			break;
 		case STATEMENT_CALL:
 		{

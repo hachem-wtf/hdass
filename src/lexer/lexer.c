@@ -38,6 +38,7 @@ static enum TokenType identifier_type(const char* start, size_t length)
 		{ "struct",  6, TOKEN_STRUCT  },
 		{ "stack",   5, TOKEN_STACK   },
 		{ "if",      2, TOKEN_IF      },
+		{ "else",    4, TOKEN_ELSE    },
 		{ "goto",    4, TOKEN_GOTO    },
 		{ "syscall", 7, TOKEN_SYSCALL },
 		{ "byte",    4, TOKEN_BYTE    },
@@ -265,6 +266,7 @@ const char* token_type_name(enum TokenType type)
 		case TOKEN_STRUCT:        return "struct";
 		case TOKEN_STACK:         return "stack";
 		case TOKEN_IF:            return "if";
+		case TOKEN_ELSE:          return "else";
 		case TOKEN_GOTO:          return "goto";
 		case TOKEN_SYSCALL:       return "syscall";
 		case TOKEN_BYTE:          return "byte";

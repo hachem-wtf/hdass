@@ -26,7 +26,7 @@ void free_expr(struct Expr* expr)
 	free(expr);
 }
 
-static void free_statement(struct Statement* statement)
+void free_statement(struct Statement* statement)
 {
 	switch (statement->kind)
 	{
@@ -36,8 +36,12 @@ static void free_statement(struct Statement* statement)
 		case STATEMENT_IF:
 			free_expr(statement->branch.left);
 			free_expr(statement->branch.right);
-			free_statement(statement->branch.body);
+			for (size_t i = 0; i < statement->branch.body_count; i += 1)
+				free_statement(&statement->branch.body[i]);
 			free(statement->branch.body);
+			for (size_t i = 0; i < statement->branch.else_count; i += 1)
+				free_statement(&statement->branch.else_body[i]);
+			free(statement->branch.else_body);
 			break;
 		case STATEMENT_CALL:
 			for (size_t i = 0; i < statement->call.arg_count; i += 1)

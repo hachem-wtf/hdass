@@ -160,8 +160,48 @@ static void test_parse_if(struct TestContext* context)
 	check(context, primary_is(branch.branch.left, "rax"));
 	check(context, text_is(branch.branch.comparison, "!="));
 	check(context, primary_is(branch.branch.right, "0"));
+	check(context, branch.branch.body_count == 1);
 	check(context, branch.branch.body->kind == STATEMENT_GOTO);
 	check(context, text_is(branch.branch.body->jump.label, "loop"));
+	check(context, branch.branch.else_count == 0);
+
+	free_program(&program);
+}
+
+static void test_parse_if_block(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nif rax > 3\n{\nrdi = 1\nrbx = 2\n}\nelse\n{\nrdi = 0\n}\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+	check(context, program.procs[0].body_count == 1);
+
+	struct Statement branch = program.procs[0].body[0];
+	check(context, branch.kind == STATEMENT_IF);
+	check(context, branch.branch.body_count == 2);
+	check(context, branch.branch.body[0].kind == STATEMENT_ASSIGN);
+	check(context, text_is(branch.branch.body[1].assign.target, "rbx"));
+	check(context, branch.branch.else_count == 1);
+	check(context, text_is(branch.branch.else_body[0].assign.target, "rdi"));
+
+	free_program(&program);
+}
+
+static void test_parse_else_if(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nif rax == 0\nrdi = 1\nelse if rax == 1\nrdi = 2\n}\n");
+	struct Program program;
+
+	check(context, parse_program(&lexer, &program));
+
+	struct Statement branch = program.procs[0].body[0];
+	check(context, branch.kind == STATEMENT_IF);
+	check(context, branch.branch.body_count == 1);
+	check(context, branch.branch.else_count == 1);
+	check(context, branch.branch.else_body[0].kind == STATEMENT_IF);
+	check(context, primary_is(branch.branch.else_body[0].branch.right, "1"));
 
 	free_program(&program);
 }
@@ -315,6 +355,8 @@ void run_parser_tests(struct TestContext* context)
 	test_parse_simple_statements(context);
 	test_parse_expressions(context);
 	test_parse_if(context);
+	test_parse_if_block(context);
+	test_parse_else_if(context);
 	test_parse_call(context);
 	test_parse_stack(context);
 	test_parse_sized_deref(context);

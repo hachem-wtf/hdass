@@ -80,6 +80,26 @@ static void test_generate_if(struct TestContext* context)
 	free_program(&program);
 }
 
+static void test_generate_if_else(struct TestContext* context)
+{
+	struct Lexer lexer = create_lexer(
+		"proc main\n{\nif rax > 3\n{\nrdi = 1\n}\nelse\n{\nrdi = 0\n}\n}\n");
+	struct Program program;
+	check(context, parse_program(&lexer, &program));
+
+	char buffer[1024];
+	generate_to_buffer(&program, buffer, sizeof(buffer));
+
+	check(context, strstr(buffer, "jle .if_else_0") != NULL);
+	check(context, strstr(buffer, "mov rdi, 1") != NULL);
+	check(context, strstr(buffer, "jmp .if_end_0") != NULL);
+	check(context, strstr(buffer, ".if_else_0:") != NULL);
+	check(context, strstr(buffer, "mov rdi, 0") != NULL);
+	check(context, strstr(buffer, ".if_end_0:") != NULL);
+
+	free_program(&program);
+}
+
 static void test_generate_call(struct TestContext* context)
 {
 	struct Lexer lexer = create_lexer(
@@ -428,6 +448,7 @@ void run_codegen_tests(struct TestContext* context)
 	test_generate_consts_and_data(context);
 	test_generate_text(context);
 	test_generate_if(context);
+	test_generate_if_else(context);
 	test_generate_call(context);
 	test_generate_param_substitution(context);
 	test_generate_divide(context);

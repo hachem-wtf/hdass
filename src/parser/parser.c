@@ -215,7 +215,7 @@ static bool is_assign_op(enum TokenType type)
 
 static struct Expr* alloc_expr(enum ExprKind kind)
 {
-	struct Expr* expr = malloc(sizeof(struct Expr));
+	struct Expr* expr = malloc(sizeof(*expr));
 	if (expr != NULL)
 		expr->kind = kind;
 	return expr;
@@ -390,6 +390,66 @@ error:
 
 static bool parse_statement(struct Parser* parser, struct Statement* out);
 
+// A branch body is either a braced block or a single bare statement, always
+// returned as a list so codegen and freeing treat both the same way.
+static bool parse_block(struct Parser* parser, struct Statement** out_body, size_t* out_count)
+{
+	if (!match_token(parser, TOKEN_LEFT_BRACE))
+	{
+		struct Statement* body = malloc(sizeof(*body));
+		if (body == NULL)
+			return false;
+
+		if (!parse_statement(parser, body))
+		{
+			free(body);
+			return false;
+		}
+
+		*out_body = body;
+		*out_count = 1;
+		return true;
+	}
+
+	struct Statement* body = NULL;
+	size_t count = 0;
+	size_t capacity = 0;
+
+	while (!check(parser, TOKEN_RIGHT_BRACE))
+	{
+		if (check(parser, TOKEN_EOF))
+		{
+			error_at(parser, parser->current, "unterminated block");
+			goto error;
+		}
+
+		if (count == capacity)
+		{
+			size_t grown_capacity = capacity == 0 ? 4 : capacity * 2;
+			struct Statement* grown = realloc(body, grown_capacity * sizeof(*grown));
+			if (grown == NULL)
+				goto error;
+			body = grown;
+			capacity = grown_capacity;
+		}
+
+		if (!parse_statement(parser, &body[count]))
+			goto error;
+		count += 1;
+	}
+	advance_parser(parser);
+
+	*out_body = body;
+	*out_count = count;
+	return true;
+
+error:
+	for (size_t i = 0; i < count; i += 1)
+		free_statement(&body[i]);
+	free(body);
+	return false;
+}
+
 static bool parse_if(struct Parser* parser, struct Statement* out)
 {
 	struct Expr* left = parse_expression(parser);
@@ -412,9 +472,21 @@ static bool parse_if(struct Parser* parser, struct Statement* out)
 		return false;
 	}
 
-	struct Statement* body = malloc(sizeof(struct Statement));
-	if (!parse_statement(parser, body))
+	struct Statement* body;
+	size_t body_count;
+	if (!parse_block(parser, &body, &body_count))
 	{
+		free_expr(left);
+		free_expr(right);
+		return false;
+	}
+
+	struct Statement* else_body = NULL;
+	size_t else_count = 0;
+	if (match_token(parser, TOKEN_ELSE) && !parse_block(parser, &else_body, &else_count))
+	{
+		for (size_t i = 0; i < body_count; i += 1)
+			free_statement(&body[i]);
 		free(body);
 		free_expr(left);
 		free_expr(right);
@@ -426,6 +498,9 @@ static bool parse_if(struct Parser* parser, struct Statement* out)
 	out->branch.comparison = comparison;
 	out->branch.right = right;
 	out->branch.body = body;
+	out->branch.body_count = body_count;
+	out->branch.else_body = else_body;
+	out->branch.else_count = else_count;
 	return true;
 }
 

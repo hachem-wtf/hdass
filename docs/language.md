@@ -118,11 +118,27 @@ rax = rbx * rcx     // + - * / % in a value; / % and their = forms use rax:rdx
 rdx = buffer + 31   // address math
 loop:               // label
 goto loop
-if rcx != 0         // == != < <= > >= ; runs the next statement only
+if rcx != 0         // == != < <= > >= ; guards the next statement or a { block }
     goto loop
 syscall
 print_number(r12)   // call; args go into the callee's parameter registers
 stack buf[Point.size] // stack buffer (size is any constant); buf is its base address
+```
+
+## Branching (`if` / `else`)
+
+`if <expr> <cmp> <expr>` guards either the single next statement or a `{ }` block, and an optional `else` takes its own statement or block. `else if` chains because the `else` body is itself a statement. Comparisons are `==` `!=` `<` `<=` `>` `>=`; a float compare needs an `xmm` register on the left (see [Floating point](#floating-point)).
+
+```hdass
+if rax > rbx
+{
+    rdi = 1
+    goto done
+}
+else if rax == rbx
+    rdi = 0
+else
+    rdi = 2
 ```
 
 ## Dereference (`^`)

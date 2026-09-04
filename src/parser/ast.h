@@ -135,6 +135,9 @@ struct IfStatement
 	struct Token comparison;
 	struct Expr* right;
 	struct Statement* body;
+	size_t body_count;
+	struct Statement* else_body;
+	size_t else_count;
 };
 
 struct CallStatement
@@ -230,3 +233,4 @@ void add_statement(struct ProcDecl* proc, struct Statement statement);
 void add_proc(struct Program* program, struct ProcDecl decl);
 
 void free_expr(struct Expr* expr);
+void free_statement(struct Statement* statement);

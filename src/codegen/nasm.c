@@ -908,6 +908,12 @@ static void emit_call(struct Emitter* emitter, struct CallStatement* call)
 
 static void emit_statement(struct Emitter* emitter, struct Statement* statement);
 
+static void emit_block(struct Emitter* emitter, struct Statement* body, size_t count)
+{
+	for (size_t i = 0; i < count; i += 1)
+		emit_statement(emitter, &body[i]);
+}
+
 // ucomisd sets the flags like an unsigned compare, so float branches use the
 // unsigned jump family (ja/jae/jb/jbe) rather than the signed one
 static const char* float_jump_if_false(enum TokenType comparison)
@@ -939,9 +945,12 @@ static void emit_float_operand(struct Emitter* emitter, const struct Expr* expr)
 static void emit_if(struct Emitter* emitter, struct IfStatement* branch)
 {
 	bool is_float = value_is_float(emitter, branch->left) || value_is_float(emitter, branch->right);
+	bool has_else = branch->else_count > 0;
 
 	uint32_t id = emitter->label_id;
 	emitter->label_id += 1;
+
+	const char* target = has_else ? ".if_else_" : ".if_end_";
 
 	if (is_float)
 	{
@@ -958,30 +967,34 @@ static void emit_if(struct Emitter* emitter, struct IfStatement* branch)
 		emit_float_operand(emitter, branch->left);
 		fprintf(emitter->out, ", ");
 		emit_float_operand(emitter, branch->right);
-		fprintf(emitter->out, "\n\t%s .if_end_%u\n", jump, id);
-
-		emit_statement(emitter, branch->body);
-		fprintf(emitter->out, ".if_end_%u:\n", id);
-		return;
+		fprintf(emitter->out, "\n\t%s %s%u\n", jump, target, id);
 	}
-
-	const char* jump = jump_if_false(branch->comparison.type);
-	if (jump == NULL
-		|| branch->left->kind == EXPR_BINARY || branch->left->kind == EXPR_DEREF
-		|| branch->right->kind == EXPR_BINARY || branch->right->kind == EXPR_DEREF)
+	else
 	{
-		fprintf(emitter->out, "\t; TODO: unsupported if\n");
-		return;
+		const char* jump = jump_if_false(branch->comparison.type);
+		if (jump == NULL
+			|| branch->left->kind == EXPR_BINARY || branch->left->kind == EXPR_DEREF
+			|| branch->right->kind == EXPR_BINARY || branch->right->kind == EXPR_DEREF)
+		{
+			fprintf(emitter->out, "\t; TODO: unsupported if\n");
+			return;
+		}
+
+		fprintf(emitter->out, "\tcmp ");
+		emit_operand(emitter, branch->left);
+		fprintf(emitter->out, ", ");
+		emit_operand(emitter, branch->right);
+		fprintf(emitter->out, "\n\t%s %s%u\n", jump, target, id);
 	}
 
-	fprintf(emitter->out, "\tcmp ");
-	emit_operand(emitter, branch->left);
-	fprintf(emitter->out, ", ");
-	emit_operand(emitter, branch->right);
-	fprintf(emitter->out, "\n");
-	fprintf(emitter->out, "\t%s .if_end_%u\n", jump, id);
+	emit_block(emitter, branch->body, branch->body_count);
 
-	emit_statement(emitter, branch->body);
+	if (has_else)
+	{
+		fprintf(emitter->out, "\tjmp .if_end_%u\n", id);
+		fprintf(emitter->out, ".if_else_%u:\n", id);
+		emit_block(emitter, branch->else_body, branch->else_count);
+	}
 
 	fprintf(emitter->out, ".if_end_%u:\n", id);
 }
@@ -1083,7 +1096,10 @@ static void collect_floats_statement(struct FloatTable* floats, struct Statement
 		case STATEMENT_IF:
 			collect_floats_expr(floats, statement->branch.left);
 			collect_floats_expr(floats, statement->branch.right);
-			collect_floats_statement(floats, statement->branch.body);
+			for (size_t i = 0; i < statement->branch.body_count; i += 1)
+				collect_floats_statement(floats, &statement->branch.body[i]);
+			for (size_t i = 0; i < statement->branch.else_count; i += 1)
+				collect_floats_statement(floats, &statement->branch.else_body[i]);
 			break;
 		case STATEMENT_CALL:
 			for (size_t i = 0; i < statement->call.arg_count; i += 1)
